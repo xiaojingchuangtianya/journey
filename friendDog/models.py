@@ -116,16 +116,7 @@ class DogWalkRecord(models.Model):
     )
     weather = models.CharField(max_length=10, choices=WEATHER_CHOICES, verbose_name='天气')
     
-    # 心情选择
-    MOOD_CHOICES = (
-        ('HAPPY', '开心'),
-        ('EXCITED', '兴奋'),
-        ('CALM', '平静'),
-        ('TIRED', '疲惫'),
-        ('ANXIOUS', '焦虑'),
-        ('PLAYFUL', '活泼'),
-    )
-    mood = models.CharField(max_length=10, choices=MOOD_CHOICES, verbose_name='心情')
+    mood = models.CharField(max_length=50, blank=True, null=True, verbose_name='心情')
     
     # 注册时间
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')

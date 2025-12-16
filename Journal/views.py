@@ -96,7 +96,7 @@ def JournalMessage(request,startIndex=0):
                     'latitude': location.latitude,#纬度
                     'address': location.address,#地点名字
                     'user': location.user.nickname or location.user.username,
-                    "images":["http://127.0.0.1:8000/" + image.image.url for image in location.photos.all()],
+                    "images":[request.build_absolute_uri(image.image.url) for image in location.photos.all()],
                     "likes_count": likes_count,
                     "isLiked": location.isLiked,
                     "type": determine_type(location.photos.count()),
@@ -405,7 +405,7 @@ def get_location_detail(request, location_id):
             ).count()
             # 默认头像
             comments.append({
-                "avatar": "http://127.0.0.1:8000/" + comment.user.avatar.url if comment.user.avatar else None,
+                "avatar": request.build_absolute_uri(comment.user.avatar.url) if comment.user.avatar else None,
                 'id': comment.id,
                 'content': comment.content,
                 'user': comment.user.nickname or comment.user.username,
@@ -430,7 +430,7 @@ def get_location_detail(request, location_id):
             "latitude": location.latitude,    # 纬度
             "address": location.address,      # 地点名字
             "user": location.user.nickname or location.user.username,
-            "images": ["http://127.0.0.1:8000/" + image.image.url for image in location.photos.all()],
+            "images": [request.build_absolute_uri(image.image.url) for image in location.photos.all()],
             "likes_count": likes_count,
             "isLiked": is_liked,
             "created_at": location.created_at.isoformat(),
@@ -626,7 +626,7 @@ def get_user_favorites(request, username):
                 
                 # 获取主图URL
                 main_photo = location.photos.filter(is_main=True).first()
-                main_photo_url = f"http://127.0.0.1:8000/{main_photo.image.url}" if main_photo else None
+                main_photo_url = request.build_absolute_uri(main_photo.image.url) if main_photo else None
                 
                 favorite_locations.append({
                     'id': location.id,

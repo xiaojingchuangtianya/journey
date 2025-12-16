@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-$5_bzpkdu#(%)3v$cyj0!_g+pr70gxi86!i1wi9^3l@!iz1+!5
 # 生产环境设置成False
 DEBUG = True
 # 生产环境需要配置允许访问的主机
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
