@@ -430,6 +430,7 @@ def get_location_detail(request, location_id):
         
         return JsonResponse({
             'status': 'success',
+            "csrf_token": get_token(request),
             'data': location_data
         })
     except models.Location.DoesNotExist:
