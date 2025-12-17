@@ -2,7 +2,7 @@ from django.shortcuts import render,HttpResponse
 from django.http import JsonResponse
 from django.contrib.auth.models import User
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from .models import DogProfile, DogWalkRecord, DogWalkPhoto, DogAvatar
 
 
@@ -48,21 +48,24 @@ def get_dog_info(request, dog_id):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
-def get_walk_records(request):
+def get_walk_records(request, user_id=None):
     """
-    获取最近10条遛狗记录
+    获取最近10条遛狗记录，可选择根据用户ID过滤
     """
     try:
-        # 获取最近10条记录，按创建时间倒序
-        records = DogWalkRecord.objects.all().order_by('-created_at')[:10]
+        # 根据是否提供user_id决定查询条件
+        if user_id:
+            records = DogWalkRecord.objects.filter(user_id=user_id).order_by('-created_at')[:10]
+        else:
+            records = DogWalkRecord.objects.all().order_by('-created_at')[:10]
         records_data = []
         
         for record in records:
             record_data = {
                 'id': record.id,
                 'dog_profile': record.dog_profile.id if record.dog_profile else None,
-                'start_time': record.start_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'end_time': record.end_time.strftime('%Y-%m-%d %H:%M:%S') if record.end_time else None,
+                'walking_time': calculate_walking_time(record.start_time, record.end_time),
+                'walk_time': format_walk_time(record.start_time),
                 'location': record.location,
                 'distance': record.distance,
                 'weather': record.weather,
@@ -76,7 +79,7 @@ def get_walk_records(request):
             for photo in record.photos.all():
                 photos.append({
                     'id': photo.id,
-                    'image_url': photo.image.url if photo.image else None
+                    'image_url': request.build_absolute_uri(photo.image.url) if photo.image else None
                 })
             record_data['photos'] = photos
             records_data.append(record_data)
@@ -84,6 +87,40 @@ def get_walk_records(request):
         return JsonResponse({'success': True, 'data': records_data})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+def calculate_walking_time(start_time, end_time):
+    """
+    计算开始时间和结束时间的间隔，返回分钟数
+    """
+    if not end_time:
+        return None
+    # 计算时间差并转换为分钟
+    duration = end_time - start_time
+    return int(duration.total_seconds() / 60)
+
+
+def format_walk_time(date_time):
+    """
+    根据日期时间返回不同格式的显示：今天，昨天，前天，今年内显示*月*日，其他显示年月日
+    """
+    today = datetime.now().date()
+    record_date = date_time.date()
+    
+    # 计算日期差异
+    delta = today - record_date
+    
+    # 判断并返回相应格式
+    if delta.days == 0:
+        return "今天"
+    elif delta.days == 1:
+        return "昨天"
+    elif delta.days == 2:
+        return "前天"
+    elif record_date.year == today.year:
+        return f"{record_date.month}月{record_date.day}日"
+    else:
+        return f"{record_date.year}年{record_date.month}月{record_date.day}日"
 
 
 def calculate_age(birth_date):
