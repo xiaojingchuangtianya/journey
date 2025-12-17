@@ -1,0 +1,4 @@
+/static/*
+/location_photos/*
+*/migrations/*
+*/__pycache__/*

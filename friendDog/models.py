@@ -6,8 +6,6 @@ class DogProfile(models.Model):
     # 基本信息
     nickname = models.CharField(max_length=100, verbose_name='昵称')
     breed = models.CharField(max_length=100, verbose_name='品种')
-    age = models.IntegerField(blank=True, null=True, verbose_name='年龄(岁)')
-    
     # 出生日期
     birth_date = models.DateField(verbose_name='出生日期')
     
@@ -27,7 +25,7 @@ class DogProfile(models.Model):
     marital_status = models.CharField(max_length=1, choices=MARITAL_STATUS_CHOICES, verbose_name='婚育情况')
     
     # 小狗简介
-    bio = models.TextField(verbose_name='小狗简介')
+    bio = models.TextField(verbose_name='小狗简介', blank=True, null=True)
     
     # IP地市
     location = models.CharField(max_length=100, verbose_name='所在地市')

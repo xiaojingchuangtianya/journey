@@ -2,6 +2,7 @@ from django.shortcuts import render,HttpResponse
 from django.http import JsonResponse
 from django.contrib.auth.models import User
 import json
+from datetime import datetime
 from .models import DogProfile, DogWalkRecord, DogWalkPhoto, DogAvatar
 
 
@@ -25,6 +26,7 @@ def get_dog_info(request, dog_id):
             'nickname': dog.nickname,
             'breed': dog.breed,
             'birth_date': dog.birth_date.strftime('%Y-%m-%d') if dog.birth_date else None,
+            'age': calculate_age(dog.birth_date) if dog.birth_date else None,
             'gender': dog.gender,
             'marital_status': dog.marital_status,
             'bio': dog.bio,
@@ -82,6 +84,26 @@ def get_walk_records(request):
         return JsonResponse({'success': True, 'data': records_data})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+def calculate_age(birth_date):
+    """
+    根据出生日期计算年龄，返回格式为'X岁Y个月'或'X个月'
+    """
+    now = datetime.now().date()
+    # 如果生日是今天之后，减去一年
+    if (now.month, now.day) < (birth_date.month, birth_date.day):
+        years = now.year - birth_date.year - 1
+        months = now.month - birth_date.month + 12
+    else:
+        years = now.year - birth_date.year
+        months = now.month - birth_date.month
+    
+    # 根据计算结果格式化输出
+    if years > 0:
+        return f"{years}岁{months}个月"
+    else:
+        return f"{months}个月"
 
 
 def get_walk_record_detail(request, record_id):
