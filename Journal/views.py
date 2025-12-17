@@ -156,21 +156,75 @@ def changeLocation(request):
 
 def createComment(request):
     if request.method == 'POST':
-        comment = models.Comment.objects.create(
-            content=request.POST.get('content'),
-            is_parent=request.POST.get('is_parent', True),
-            parent=request.POST.get('parent') if request.POST.get('is_parent') else None,
-            user=User.objects.get(id=request.POST.get('user_id')),
-            location=models.Location.objects.get(id=request.POST.get('location_id')) if request.POST.get('location_id') else None,
-        )
-        return JsonResponse({
-            'status': 'success',
-            'message': '评论创建成功！！！',
-        })
+        print(request.POST.get('user_id'))
+        print(request.POST.get('location_id'))
+        try:
+            # 获取必要参数
+            content = request.POST.get('content')
+            user_id = request.POST.get('user_id')
+            location_id = request.POST.get('location_id')
+            is_parent = request.POST.get('is_parent', True)
+            parent_id = request.POST.get('parent') if not is_parent else None
+            
+            # 验证必要参数
+            if not content or not user_id:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '内容和用户ID不能为空！'
+                })
+            
+            # 获取用户对象
+            user = User.objects.get(id=user_id)
+            
+            # 获取地点对象（如果提供了location_id）
+            location = None
+            if location_id:
+                location = models.Location.objects.get(id=location_id)
+            
+            # 获取父评论对象（如果需要）
+            parent = None
+            if parent_id:
+                parent = models.Comment.objects.get(id=parent_id)
+            
+            # 创建评论
+            comment = models.Comment.objects.create(
+                content=content,
+                is_parent=is_parent,
+                parent=parent,
+                user=user,
+                location=location
+            )
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': '评论创建成功！！！',
+                'comment_id': comment.id
+            })
+            
+        except User.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': '用户不存在！'
+            })
+        except models.Location.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': '地点不存在！'
+            })
+        except models.Comment.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': '父评论不存在！'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'创建评论失败：{str(e)}'
+            })
     else:
         return JsonResponse({
             'status': 'error',
-            'message': '用户未登陆！！！'
+            'message': '请求方法错误！'
         })
 
 
