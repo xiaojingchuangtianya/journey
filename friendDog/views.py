@@ -39,7 +39,7 @@ def get_dog_info(request, dog_id):
         
         # 如果有头像，添加头像URL
         if hasattr(dog, 'avatar') and dog.avatar:
-            dog_data['avatar'] = dog.avatar.image.url if dog.avatar.image else None
+            dog_data['avatar'] = request.build_absolute_uri(dog.avatar.image.url) if dog.avatar and dog.avatar.image else None
         
         return JsonResponse({'success': True, 'data': dog_data})
     except DogProfile.DoesNotExist:
