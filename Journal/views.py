@@ -1,4 +1,4 @@
-from django.contrib.auth.models import User
+from Journal.models import User
 from Journal import models 
 from django.http import HttpResponse, JsonResponse
 from django.middleware.csrf import get_token
@@ -160,21 +160,12 @@ def createComment(request):
             content=request.POST.get('content'),
             is_parent=request.POST.get('is_parent', True),
             parent=request.POST.get('parent') if request.POST.get('is_parent') else None,
-            user=User.objects.get(username=request.POST.get('username')),
-            location=request.POST.get('location') if request.POST.get('location') else None,
+            user=User.objects.get(id=request.POST.get('user_id')),
+            location=models.Location.objects.get(id=request.POST.get('location_id')) if request.POST.get('location_id') else None,
         )
         return JsonResponse({
             'status': 'success',
             'message': '评论创建成功！！！',
-            # 'comment': {
-            #     'id': comment.id,
-            #     'content': comment.content,
-            #     'is_parent': comment.is_parent,
-            #     'parent': comment.parent.id if comment.parent else None,
-            #     'user': comment.user.nickname or comment.user.username,
-            #     'location': comment.location.title if comment.location else None,
-            #     'created_at': comment.created_at.isoformat(),
-            # }
         })
     else:
         return JsonResponse({
