@@ -8,7 +8,10 @@ from django.http import JsonResponse
 from django.contrib.contenttypes.models import ContentType
 from .models import Comment, Like, Favorite
 import math
-from django.db.models import Q
+from django.db.models import Q, Case, When, IntegerField
+import difflib
+import json
+import os
 import random
 import urllib.request
 import json
@@ -423,6 +426,384 @@ def showComment(request, location_id):
 def likeComment(request):
     """点赞评论视图函数"""
     pass
+
+
+def toggle_like_location(request):
+    """切换地点点赞状态的视图函数
+    如果用户已点赞地点，则取消点赞；如果未点赞，则添加点赞
+    """
+    if request.method == 'POST':
+        try:
+            # 获取请求参数
+            username = request.POST.get('username')
+            location_id = request.POST.get('location_id')
+            
+            # 验证必要参数
+            if not username or not location_id:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '用户名和地点ID不能为空！'
+                })
+            
+            # 获取用户对象
+            user = models.User.objects.get(username=username)
+            
+            # 获取地点对象
+            location = models.Location.objects.get(id=location_id)
+            
+            # 获取地点的ContentType
+            location_content_type = ContentType.objects.get_for_model(location)
+            
+            # 检查用户是否已点赞该地点
+            existing_like = models.Like.objects.filter(
+                user=user,
+                content_type=location_content_type,
+                object_id=location.id
+            ).first()
+            
+            if existing_like:
+                # 如果已点赞，则取消点赞（删除点赞记录）
+                existing_like.delete()
+                is_liked = False
+                message = '取消点赞成功！'
+            else:
+                # 如果未点赞，则添加点赞（创建点赞记录）
+                models.Like.objects.create(
+                    user=user,
+                    content_type=location_content_type,
+                    object_id=location.id
+                )
+                is_liked = True
+                message = '点赞成功！'
+            
+            # 获取更新后的点赞数
+            likes_count = models.Like.objects.filter(
+                content_type=location_content_type,
+                object_id=location.id
+            ).count()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': message,
+                'is_liked': is_liked,
+                'likes_count': likes_count
+            })
+            
+        except models.User.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': '用户不存在！'
+            })
+        except models.Location.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': '地点不存在！'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'操作失败：{str(e)}'
+            })
+    else:
+        return JsonResponse({
+            'status': 'error',
+            'message': '只支持POST请求！'
+        })
+
+
+def search_locations(request):
+    """搜索地点的接口
+    支持按标题、内容、地址和昵称进行关键词搜索，并根据关联性排序
+    增强了模糊关联搜索能力，支持相似字符串匹配（如输入abc能匹配abd、adb等）
+    根据配置文件中的规则计算权重和匹配阈值
+    """
+    if request.method == 'GET':
+        try:
+            # 加载搜索配置
+            config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'search_config.json')
+            with open(config_path, 'r', encoding='utf-8') as f:
+                search_config = json.load(f)
+            
+            # 获取搜索参数
+            keyword = request.GET.get('keyword', '').strip()
+            page = int(request.GET.get('page', 1))
+            page_size = int(request.GET.get('page_size', 10))
+            
+            # 验证参数
+            if page < 1:
+                page = 1
+            if page_size < 1 or page_size > 50:
+                page_size = 10
+            
+            # 构建查询
+            query = models.Location.objects.select_related('user')
+            
+            if keyword:
+                print(f"Debug - Input keyword: {keyword}")
+                # 应用所有特殊映射配置：检查并替换关键词中包含的所有特殊映射
+                mapped_keyword = keyword
+                for special_key, mapped_value in search_config['special_mappings'].items():
+                    if special_key in mapped_keyword:
+                        original_keyword = mapped_keyword
+                        mapped_keyword = mapped_keyword.replace(special_key, mapped_value)
+                        print(f"Debug - Applied special mapping: {special_key} -> {mapped_value} in {original_keyword} -> {mapped_keyword}")
+                
+                # 使用映射后的关键词进行搜索
+                keywords = mapped_keyword.split()
+                print(f"Debug - Using mapped keywords: {keywords}")
+                
+                # 获取所有可能的地点进行模糊匹配
+                # 先获取所有地点，后续在Python中进行模糊匹配
+                # 为了性能考虑，我们可以先做一个简单的过滤
+                locations = list(models.Location.objects.select_related('user').all())
+                
+                # 保存模糊匹配到的地点
+                matched_locations = []
+                
+                # 对每个地点进行模糊匹配检查
+                for location in locations:
+                    # 标记是否匹配
+                    is_matched = False
+                    
+                    # 对每个关键词进行模糊匹配
+                    for kw in keywords:
+                        # 计算与标题的相似度
+                        title_similarity = difflib.SequenceMatcher(None, kw.lower(), location.title.lower()).ratio()
+                        # 计算与地址的相似度
+                        address_similarity = difflib.SequenceMatcher(None, kw.lower(), location.address.lower()).ratio()
+                        # 计算与昵称的相似度
+                        nickname_similarity = difflib.SequenceMatcher(None, kw.lower(), location.user.nickname.lower()).ratio()
+                        
+                        # 获取配置中的阈值和关键词
+                        default_threshold = search_config['similarity_thresholds']['default']
+                        special_threshold = search_config['similarity_thresholds']['special_topic']
+                        camping_keywords = search_config['related_keywords']['camping']
+                        
+                        # 检查是否是特殊主题相关的搜索
+                        is_special_topic = any(camp_word in kw for camp_word in camping_keywords)
+                        target_has_special = any(camp_word in location.title or camp_word in location.address 
+                                              for camp_word in camping_keywords)
+                        
+                        # 动态阈值：如果是特殊主题相关搜索，使用较低的阈值
+                        threshold = special_threshold if (is_special_topic or target_has_special) else default_threshold
+                        
+                        # 如果相似度足够高，或者是精确包含，就认为匹配
+                        if (title_similarity >= threshold or address_similarity >= threshold or nickname_similarity >= threshold or
+                            kw.lower() in location.title.lower() or kw.lower() in location.address.lower() or 
+                            kw.lower() in location.user.nickname.lower()):
+                            is_matched = True
+                            break
+                    
+                    # 如果匹配，添加到结果列表
+                    if is_matched:
+                        matched_locations.append(location)
+                
+                # 使用匹配到的地点列表
+                
+                # 为每个地点计算关联度分数
+                scored_locations = []
+                for location in matched_locations:
+                    score = 0
+                    
+                    # 获取配置中的权重
+                    default_weights = search_config['weight_config']['default']
+                    special_weights = search_config['weight_config']['special_topic']
+                    camping_keywords = search_config['related_keywords']['camping']
+                    
+                    # 根据匹配位置和匹配程度计算分数
+                    # 标题完全匹配（精确匹配）给最高分
+                    if keyword.lower() == location.title.lower():
+                        score += default_weights['title_exact_match']
+                    # 标题中包含关键词
+                    elif keyword.lower() in location.title.lower():
+                        score += default_weights['title_contains']
+                        # 根据关键词在标题中的位置调整分数（越靠前分数越高）
+                        title_lower = location.title.lower()
+                        kw_lower = keyword.lower()
+                        position = title_lower.find(kw_lower)
+                        if position != -1:
+                            score += max(0, default_weights['title_position_weight'] - position * default_weights['title_position_factor'])
+                    # 标题模糊匹配
+                    else:
+                        # 检查是否是特殊主题相关的搜索
+                        is_special_topic = any(camp_word in keyword for camp_word in camping_keywords)
+                        target_has_special = any(camp_word in location.title or camp_word in location.address 
+                                              for camp_word in camping_keywords)
+                        
+                        # 计算标题相似度
+                        title_similarity = difflib.SequenceMatcher(None, keyword.lower(), location.title.lower()).ratio()
+                        
+                        # 特殊主题内容特殊处理：降低阈值，提高权重
+                        if (is_special_topic and target_has_special):
+                            if title_similarity >= search_config['similarity_thresholds']['special_topic']:
+                                score += title_similarity * special_weights['title_similarity']
+                        # 普通情况
+                        elif title_similarity >= search_config['similarity_thresholds']['default']:
+                            score += title_similarity * default_weights['title_similarity']
+                    
+                    # 特殊关键词已经在搜索前替换，这里不再需要额外处理
+                    # 保持原有的匹配和计分逻辑
+                    
+                    # 地址匹配
+                    for kw in keywords:
+                        if kw.lower() in location.address.lower():
+                            score += default_weights['address_contains']
+                            # 地址中的关键词也考虑位置
+                            address_lower = location.address.lower()
+                            position = address_lower.find(kw.lower())
+                            if position != -1:
+                                score += max(0, default_weights['address_position_weight'] - position * default_weights['address_position_factor'])
+                        # 地址模糊匹配
+                        else:
+                            # 检查是否是特殊主题相关的关键词
+                            is_special_kw = any(camp_word in kw for camp_word in camping_keywords)
+                            address_has_special = any(camp_word in location.address for camp_word in camping_keywords)
+                            
+                            address_similarity = difflib.SequenceMatcher(None, kw.lower(), location.address.lower()).ratio()
+                            
+                            # 特殊主题地址特殊处理
+                            if (is_special_kw and address_has_special):
+                                if address_similarity >= search_config['similarity_thresholds']['special_topic']:
+                                    score += address_similarity * special_weights['address_similarity']
+                            elif address_similarity >= search_config['similarity_thresholds']['default']:
+                                score += address_similarity * default_weights['address_similarity']
+                    
+                    # 内容匹配
+                    content_lower = location.content.lower()
+                    for kw in keywords:
+                        if kw.lower() in content_lower:
+                            # 内容匹配的权重较低，但匹配次数越多分数越高
+                            match_count = content_lower.count(kw.lower())
+                            score += default_weights['content_contains_base'] + (match_count - 1) * default_weights['content_contains_factor']
+                        # 内容模糊匹配
+                        else:
+                            # 检查是否是特殊主题相关的关键词
+                            is_special_kw = any(camp_word in kw for camp_word in camping_keywords)
+                            content_has_special = any(camp_word in location.content for camp_word in camping_keywords)
+                            
+                            content_similarity = difflib.SequenceMatcher(None, kw.lower(), content_lower).ratio()
+                            
+                            # 特殊主题内容特殊处理
+                            if (is_special_kw and content_has_special):
+                                if content_similarity >= search_config['similarity_thresholds']['special_topic']:
+                                    score += content_similarity * special_weights['content_similarity']
+                            elif content_similarity >= search_config['similarity_thresholds']['default']:
+                                score += content_similarity * default_weights['content_similarity']
+                    
+                    # 用户相关字段匹配（仅保留昵称）
+                    # 昵称完全匹配
+                    if keyword.lower() == location.user.nickname.lower():
+                        score += default_weights['nickname_exact_match']
+                    # 昵称包含关键词
+                    elif keyword.lower() in location.user.nickname.lower():
+                        score += default_weights['nickname_contains']
+                        # 昵称中的关键词也考虑位置
+                        nickname_lower = location.user.nickname.lower()
+                        position = nickname_lower.find(keyword.lower())
+                        if position != -1:
+                            score += max(0, default_weights['nickname_position_weight'] - position * default_weights['nickname_position_factor'])
+                    # 昵称模糊匹配
+                    else:
+                        nickname_similarity = difflib.SequenceMatcher(None, keyword.lower(), location.user.nickname.lower()).ratio()
+                        if nickname_similarity >= search_config['similarity_thresholds']['default']:
+                            score += nickname_similarity * default_weights['nickname_similarity']
+                    
+                    # 检查多关键词在昵称中的匹配
+                    for kw in keywords:
+                        # 昵称中的关键词匹配
+                        if kw.lower() in location.user.nickname.lower():
+                            score += default_weights['nickname_multi_keywords']
+                        # 昵称模糊匹配
+                        else:
+                            kw_nickname_similarity = difflib.SequenceMatcher(None, kw.lower(), location.user.nickname.lower()).ratio()
+                            if kw_nickname_similarity >= search_config['similarity_thresholds']['default']:
+                                score += kw_nickname_similarity * default_weights['nickname_multi_keywords_similarity']
+                    
+                    scored_locations.append((location, score))
+                
+                # 按关联度分数降序排序，分数相同时按创建时间降序
+                scored_locations.sort(key=lambda x: (x[1], x[0].created_at), reverse=True)
+                
+                # 提取排序后的地点列表
+                sorted_locations = [loc for loc, score in scored_locations]
+                
+                # 计算总数
+                total_count = len(sorted_locations)
+                
+                # 分页
+                start = (page - 1) * page_size
+                end = start + page_size
+                locations = sorted_locations[start:end]
+            else:
+                # 无关键词时按创建时间降序
+                query = query.order_by('-created_at')
+                
+                # 计算总数
+                total_count = query.count()
+                
+                # 分页
+                start = (page - 1) * page_size
+                end = start + page_size
+                locations = query[start:end]
+            
+            # 准备返回数据
+            search_results = []
+            for location in locations:
+                # 获取地点的主图
+                main_photo = location.photos.filter(is_main=True).first()
+                main_photo_url = request.build_absolute_uri(main_photo.image.url) if main_photo else None
+                
+                # 获取地点的点赞数
+                location_content_type = ContentType.objects.get_for_model(location)
+                likes_count = models.Like.objects.filter(
+                    content_type=location_content_type,
+                    object_id=location.id
+                ).count()
+                
+                search_results.append({
+                    'id': location.id,
+                    'title': location.title,
+                    'address': location.address,
+                    'content': location.content[:100] + '...' if len(location.content) > 100 else location.content,
+                    'longitude': location.longitude,
+                    'latitude': location.latitude,
+                    'created_at': location.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                    'main_photo_url': main_photo_url,
+                    'likes_count': likes_count,
+                    'comments_count': location.comments.count(),
+                    'user_nickname': location.user.nickname
+                })
+            
+            # 计算总页数
+            total_pages = (total_count + page_size - 1) // page_size
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': '搜索成功',
+                'data': {
+                    'locations': search_results,
+                    'total_count': total_count,
+                    'page': page,
+                    'page_size': page_size,
+                    'total_pages': total_pages
+                }
+            })
+            
+        except ValueError:
+            return JsonResponse({
+                'status': 'error',
+                'message': '分页参数格式错误'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'搜索失败：{str(e)}'
+            })
+    else:
+        return JsonResponse({
+            'status': 'error',
+            'message': '只支持GET请求'
+        })
 
 
 def get_nearby_locations(request):

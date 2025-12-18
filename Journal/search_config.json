@@ -1,0 +1,74 @@
+{
+    "related_keywords": {
+        "camping": ["露营", "露地", "营地", "露营地", "露", "帐篷", "野营", "扎营", "户外", "露宿", "帐蓬", "天幕", "房车", "烧烤", "篝火", "徒步", "登山"],
+        "wetland": ["湿地", "沼泽", "滩涂", "芦苇荡", "湖泊", "河流", "水域", "泥潭", "池塘", "水系", "绿洲", "湿地公园"],
+        "park": ["公园", "园林", "绿地", "花园", "城市公园", "主题公园", "森林公园", "自然公园", "植物园", "动物园", "休闲区", "景区"]
+    },
+    "similarity_thresholds": {
+        "default": 0.7,
+        "special_topic": 0.6
+    },
+    "weight_config": {
+        "default": {
+            "title_exact_match": 100,
+            "title_contains": 50,
+            "title_position_weight": 30,
+            "title_position_factor": 2,
+            "title_similarity": 50,
+            "address_contains": 20,
+            "address_position_weight": 10,
+            "address_position_factor": 0.5,
+            "address_similarity": 20,
+            "content_contains_base": 5,
+            "content_contains_factor": 2,
+            "content_similarity": 10,
+            "nickname_exact_match": 80,
+            "nickname_contains": 40,
+            "nickname_position_weight": 10,
+            "nickname_position_factor": 0.5,
+            "nickname_similarity": 40,
+            "nickname_multi_keywords": 20,
+            "nickname_multi_keywords_similarity": 20
+        },
+        "special_topic": {
+            "title_similarity": 70,
+            "address_similarity": 30,
+            "content_similarity": 15
+        }
+    },
+    "special_mappings": {
+        "露营低": "露营地",
+        "露营底": "露营地",
+        "露营弟": "露营地",
+        "露营的": "露营地",
+        "露影": "露营",
+        "路影": "露营",
+        "陆营": "露营",
+        "是地": "湿地",
+        "失地": "湿地",
+        "施地": "湿地",
+        "试地": "湿地",
+        "工园": "公园",
+        "公远": "公园",
+        "公院": "公园",
+        "公圆": "公园",
+        "公员": "公园"
+    },
+    "special_bonus": {
+        "露营低": 80,
+        "露营底": 80,
+        "露营弟": 80,
+        "露影": 70,
+        "路影": 70,
+        "陆营": 70,
+        "是地": 60,
+        "失地": 60,
+        "施地": 60,
+        "试地": 60,
+        "工园": 60,
+        "公远": 60,
+        "公院": 60,
+        "公圆": 60,
+        "公员": 60
+    }
+}
