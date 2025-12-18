@@ -10,7 +10,7 @@ from .models import Comment, Like, Favorite
 import math
 from django.db.models import Q
 import random
-import requests
+import urllib.request
 from django.core.files.base import ContentFile
 import os
 from urllib.parse import urlparse
@@ -131,17 +131,18 @@ def createUser(request):
                 avatar_url = avatar_data[0].strip().strip('`"\'')
                 if avatar_url:
                     try:
-                        # 下载图片
-                        response = requests.get(avatar_url, timeout=10)
-                        if response.status_code == 200:
-                            # 从URL获取文件名
-                            parsed_url = urlparse(avatar_url)
-                            filename = os.path.basename(parsed_url.path)
-                            # 如果URL没有文件名，生成一个默认名称
-                            if not filename:
-                                filename = f"avatar_{username}_{random.randint(1000, 9999)}.jpg"
-                            # 保存到Django文件系统
-                            avatar_file = ContentFile(response.content, name=filename)
+                        # 下载图片（使用原生urllib）
+                        req = urllib.request.Request(avatar_url, headers={'User-Agent': 'Mozilla/5.0'})
+                        with urllib.request.urlopen(req, timeout=10) as response:
+                            if response.status == 200:
+                                # 从URL获取文件名
+                                parsed_url = urlparse(avatar_url)
+                                filename = os.path.basename(parsed_url.path)
+                                # 如果URL没有文件名，生成一个默认名称
+                                if not filename:
+                                    filename = f"avatar_{username}_{random.randint(1000, 9999)}.jpg"
+                                # 保存到Django文件系统
+                                avatar_file = ContentFile(response.read(), name=filename)
                     except Exception as e:
                         print(f"下载头像失败: {str(e)}")
                         # 如果下载失败，不阻止用户创建，只是不设置头像
