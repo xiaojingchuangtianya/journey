@@ -170,6 +170,7 @@ def createUser(request):
             pc = WXBizDataCrypt(APP_ID, session_key)
             try:
                 user_info = pc.decrypt(encryptedData, iv)
+                print(user_info)
             except Exception as e:
                 return JsonResponse({
                     'status': 'error',
@@ -202,15 +203,40 @@ def createUser(request):
                 # 更新现有用户信息
                 user.nickname = user_info.get('nickName', openid)
                 user.gender = user_info.get('gender') if user_info.get('gender') else None
-                if ip_location:
-                    user.ip_location = ip_location
+                
+                # 使用微信用户信息中的province和city构建ip_location
+                province = user_info.get('province', '')
+                city = user_info.get('city', '')
+                
+                # 按照province-city格式拼接，如果两个都没有则为空字符串
+                if province and city:
+                    user.ip_location = f"{province}-{city}"
+                elif province:
+                    user.ip_location = province
+                elif city:
+                    user.ip_location = city
+                else:
+                    user.ip_location = ''
             except models.User.DoesNotExist:
+                # 使用微信用户信息中的province和city构建ip_location
+                province = user_info.get('province', '')
+                city = user_info.get('city', '')
+                
+                # 按照province-city格式拼接，如果两个都没有则为空字符串
+                ip_location_value = ''
+                if province and city:
+                    ip_location_value = f"{province}-{city}"
+                elif province:
+                    ip_location_value = province
+                elif city:
+                    ip_location_value = city
+                
                 # 创建新用户
                 user = models.User.objects.create_user(
                     username=openid,  # 使用openid作为username
                     nickname=user_info.get('nickName', openid),
                     gender=user_info.get('gender') if user_info.get('gender') else None,
-                    ip_location=ip_location
+                    ip_location=ip_location_value
                 )
             
             # 5. 设置头像
@@ -262,25 +288,23 @@ def changeLocation(request):
 
 def createComment(request):
     if request.method == 'POST':
-        print(request.POST.get('user_id'))
-        print(request.POST.get('location_id'))
         try:
             # 获取必要参数
             content = request.POST.get('content')
-            user_id = request.POST.get('user_id')
+            username = request.POST.get('username')
             location_id = request.POST.get('location_id')
             is_parent = request.POST.get('is_parent', True)
             parent_id = request.POST.get('parent') if not is_parent else None
             
             # 验证必要参数
-            if not content or not user_id:
+            if not content or not username:
                 return JsonResponse({
                     'status': 'error',
-                    'message': '内容和用户ID不能为空！'
+                    'message': '内容和用户名不能为空！'
                 })
             
             # 获取用户对象
-            user = User.objects.get(id=user_id)
+            user = User.objects.get(username=username)
             
             # 获取地点对象（如果提供了location_id）
             location = None
