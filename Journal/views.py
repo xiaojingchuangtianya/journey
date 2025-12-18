@@ -117,11 +117,13 @@ def JournalMessage(request,startIndex=0):
 # 进入到小程序界面，首次触发创建账号
 def createUser(request):
     if request.method == 'POST':
+        print(request.POST)
         user = models.User.objects.create_user(
             username=request.POST.get('username'),
-            nickname=request.POST.get('nickname'),
+            nickname=request.POST.get('username'),
             ip_location=request.POST.get('ip_location'),
             gender=request.POST.get('gender') if request.POST.get('gender') else None,
+            avatar=request.POST.get('avatar') if request.POST.get('avatar') else None,
         )
         return JsonResponse({
             'status': 'success',

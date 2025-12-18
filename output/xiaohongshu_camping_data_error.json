@@ -1,0 +1,20 @@
+{
+  "metadata": {
+    "total_count": 1,
+    "extraction_time": "2025-12-17 17:19:01",
+    "source": "xiaohongshu",
+    "version": "1.0"
+  },
+  "data": [
+    {
+      "title": "未找到标题",
+      "content": "未找到内容",
+      "user": "未知用户",
+      "location": "未知位置",
+      "photos": [],
+      "likes": 0,
+      "extracted_at": "2025-12-17 17:18:00",
+      "source": "xiaohongshu"
+    }
+  ]
+}
