@@ -117,24 +117,65 @@ def JournalMessage(request,startIndex=0):
 # 进入到小程序界面，首次触发创建账号
 def createUser(request):
     if request.method == 'POST':
-        print(request.POST)
-        user = models.User.objects.create_user(
-            username=request.POST.get('username'),
-            nickname=request.POST.get('username'),
-            ip_location=request.POST.get('ip_location'),
-            gender=request.POST.get('gender') if request.POST.get('gender') else None,
-            avatar=request.POST.get('avatar') if request.POST.get('avatar') else None,
-        )
-        return JsonResponse({
-            'status': 'success',
-            'message': 'User created successfully',
-            'user': {
-                'username': user.username,
-                'nickname': user.nickname,
-                'ip_location': user.ip_location,
-                'gender': user.gender,
-            }
-        })
+        try:
+            # 获取并处理username参数
+            username_data = request.POST.getlist('username')
+            username = username_data[0].strip() if username_data and username_data[0] else None
+            
+            # 获取并处理avatar参数
+            avatar_data = request.POST.getlist('avatar')
+            avatar = None
+            if avatar_data and avatar_data[0]:
+                # 清理avatar字符串中的额外空格和引号
+                avatar = avatar_data[0].strip().strip('`"\'')
+            
+            # 获取并处理gender参数
+            gender_data = request.POST.getlist('gender')
+            gender = gender_data[0] if gender_data and gender_data[0] else None
+            
+            # 获取ip_location参数
+            ip_location_data = request.POST.getlist('ip_location')
+            ip_location = ip_location_data[0] if ip_location_data else ''
+            
+            # 验证必需参数
+            if not username:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '用户名不能为空'
+                })
+            
+            # 创建用户
+            user = models.User.objects.create_user(
+                username=username,
+                nickname=username,  # 使用username作为nickname
+                ip_location=ip_location,
+                gender=gender,
+                avatar=avatar
+            )
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'User created successfully',
+                'user': {
+                    'username': user.username,
+                    'nickname': user.nickname,
+                    'ip_location': user.ip_location,
+                    'gender': user.gender,
+                    'avatar': user.avatar,
+                }
+            })
+        except models.User.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': '用户不存在'
+            })
+        except Exception as e:
+            # 捕获所有其他异常并返回错误信息
+            return JsonResponse({
+                'status': 'error',
+                'message': f'创建用户失败: {str(e)}'
+            })
+        
 
     else:
         return HttpResponse("Invalid request method")
