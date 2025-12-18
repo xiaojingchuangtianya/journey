@@ -14,6 +14,7 @@ import urllib.request
 from django.core.files.base import ContentFile
 import os
 from urllib.parse import urlparse
+from datetime import datetime
 
 def determine_type(image_count):
     """根据图片数量确定type返回值"""
@@ -138,9 +139,9 @@ def createUser(request):
                                 # 从URL获取文件名
                                 parsed_url = urlparse(avatar_url)
                                 filename = os.path.basename(parsed_url.path)
-                                # 如果URL没有文件名，生成一个默认名称
-                                if not filename:
-                                    filename = f"avatar_{username}_{random.randint(1000, 9999)}.jpg"
+                                # 确保所有头像文件都使用.png后缀
+                                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                                filename = f"avatar_{username}_{timestamp}.png"
                                 # 保存到Django文件系统
                                 avatar_file = ContentFile(response.read(), name=filename)
                     except Exception as e:
@@ -176,6 +177,9 @@ def createUser(request):
                 user.avatar = avatar_file
                 user.save()
             
+            # 构建avatar URL或返回空字符串
+            avatar_url = request.build_absolute_uri(user.avatar.url) if user.avatar else ''
+            
             return JsonResponse({
                 'status': 'success',
                 'message': 'User created successfully',
@@ -184,7 +188,7 @@ def createUser(request):
                     'nickname': user.nickname,
                     'ip_location': user.ip_location,
                     'gender': user.gender,
-                    'avatar': user.avatar,
+                    'avatar': avatar_url,
                 }
             })
         except models.User.DoesNotExist:
