@@ -9,10 +9,11 @@ from django.contrib.contenttypes.models import ContentType
 from .models import Comment, Like, Favorite
 import math
 from django.db.models import Q
-
-
-
 import random
+import requests
+from django.core.files.base import ContentFile
+import os
+from urllib.parse import urlparse
 
 def determine_type(image_count):
     """根据图片数量确定type返回值"""
@@ -124,11 +125,28 @@ def createUser(request):
             
             # 获取并处理avatar参数
             avatar_data = request.POST.getlist('avatar')
-            avatar = None
+            avatar_file = None
             if avatar_data and avatar_data[0]:
                 # 清理avatar字符串中的额外空格和引号
-                avatar = avatar_data[0].strip().strip('`"\'')
-            print(avatar)
+                avatar_url = avatar_data[0].strip().strip('`"\'')
+                if avatar_url:
+                    try:
+                        # 下载图片
+                        response = requests.get(avatar_url, timeout=10)
+                        if response.status_code == 200:
+                            # 从URL获取文件名
+                            parsed_url = urlparse(avatar_url)
+                            filename = os.path.basename(parsed_url.path)
+                            # 如果URL没有文件名，生成一个默认名称
+                            if not filename:
+                                filename = f"avatar_{username}_{random.randint(1000, 9999)}.jpg"
+                            # 保存到Django文件系统
+                            avatar_file = ContentFile(response.content, name=filename)
+                    except Exception as e:
+                        print(f"下载头像失败: {str(e)}")
+                        # 如果下载失败，不阻止用户创建，只是不设置头像
+                        avatar_file = None
+
             # 获取并处理gender参数
             gender_data = request.POST.getlist('gender')
             gender = gender_data[0] if gender_data and gender_data[0] else None
@@ -149,9 +167,13 @@ def createUser(request):
                 username=username,
                 nickname=username,  # 使用username作为nickname
                 ip_location=ip_location,
-                gender=gender,
-                avatar=avatar
+                gender=gender
             )
+            
+            # 设置头像（单独设置以避免create_user方法可能的限制）
+            if avatar_file:
+                user.avatar = avatar_file
+                user.save()
             
             return JsonResponse({
                 'status': 'success',
