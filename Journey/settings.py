@@ -130,3 +130,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 MEDIA_URL = 'location_photos/'
 MEDIA_ROOT = BASE_DIR / 'location_photos'
+
+APP_ID='wx98b7ea2e3639b87e'
+APP_SECRET = 'c87e1f5fd2fece8045f25580ab7704e6' 

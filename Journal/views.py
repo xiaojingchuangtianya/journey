@@ -11,10 +11,13 @@ import math
 from django.db.models import Q
 import random
 import urllib.request
+import json
 from django.core.files.base import ContentFile
 import os
 from urllib.parse import urlparse
 from datetime import datetime
+from .WXBizDataCrypt import WXBizDataCrypt
+from Journey.settings import APP_ID, APP_SECRET
 
 def determine_type(image_count):
     """根据图片数量确定type返回值"""
@@ -120,90 +123,123 @@ def JournalMessage(request,startIndex=0):
 def createUser(request):
     if request.method == 'POST':
         try:
-            # 获取并处理username参数
-            username_data = request.POST.getlist('username')
-            username = username_data[0].strip() if username_data and username_data[0] else None
-            
-            # 获取并处理avatar参数
-            avatar_data = request.POST.getlist('avatar')
-            avatar_file = None
-            if avatar_data and avatar_data[0]:
-                # 清理avatar字符串中的额外空格和引号
-                avatar_url = avatar_data[0].strip().strip('`"\'')
-                if avatar_url:
-                    try:
-                        # 下载图片（使用原生urllib）
-                        req = urllib.request.Request(avatar_url, headers={'User-Agent': 'Mozilla/5.0'})
-                        with urllib.request.urlopen(req, timeout=10) as response:
-                            if response.status == 200:
-                                # 从URL获取文件名
-                                parsed_url = urlparse(avatar_url)
-                                filename = os.path.basename(parsed_url.path)
-                                # 确保所有头像文件都使用.png后缀
-                                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                                filename = f"avatar_{username}_{timestamp}.png"
-                                # 保存到Django文件系统
-                                avatar_file = ContentFile(response.read(), name=filename)
-                    except Exception as e:
-                        print(f"下载头像失败: {str(e)}")
-                        # 如果下载失败，不阻止用户创建，只是不设置头像
-                        avatar_file = None
-
-            # 获取并处理gender参数
-            gender_data = request.POST.getlist('gender')
-            gender = gender_data[0] if gender_data and gender_data[0] else None
-            
-            # 获取ip_location参数
-            ip_location_data = request.POST.getlist('ip_location')
-            ip_location = ip_location_data[0] if ip_location_data else ''
+            # 从POST请求中获取微信授权所需参数
+            code = request.POST.get('code')
+            encryptedData = request.POST.get('encryptedData')
+            iv = request.POST.get('iv')
+            ip_location = request.POST.get('ip_location', '')
             
             # 验证必需参数
-            if not username:
+            if not all([code, encryptedData, iv]):
                 return JsonResponse({
                     'status': 'error',
-                    'message': '用户名不能为空'
+                    'message': '缺少必要的微信授权参数'
+                })
+                    
+            
+            # 构建微信登录API请求URL
+            wx_login_url = f"https://api.weixin.qq.com/sns/jscode2session?appid={APP_ID}&secret={APP_SECRET}&js_code={code}&grant_type=authorization_code"
+            
+            # 发送请求获取session_key
+            with urllib.request.urlopen(wx_login_url, timeout=10) as response:
+                if response.status == 200:
+                    result = json.loads(response.read().decode('utf-8'))
+                    
+                    # 检查是否获取成功
+                    if 'errcode' in result:
+                        return JsonResponse({
+                            'status': 'error',
+                            'message': f'获取微信session_key失败: {result.get("errmsg", "未知错误")}'
+                        })
+                    
+                    session_key = result.get('session_key')
+                    openid = result.get('openid')
+                    
+                    if not session_key or not openid:
+                        return JsonResponse({
+                            'status': 'error',
+                            'message': '获取微信session_key或openid失败'
+                        })
+                else:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': f'请求微信API失败，状态码: {response.status}'
+                    })
+            
+            # 2. 使用session_key解密encryptedData获取用户信息
+            pc = WXBizDataCrypt(APP_ID, session_key)
+            try:
+                user_info = pc.decrypt(encryptedData, iv)
+            except Exception as e:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'解密用户数据失败: {str(e)}'
                 })
             
-            # 创建用户
-            user = models.User.objects.create_user(
-                username=username,
-                nickname=username,  # 使用username作为nickname
-                ip_location=ip_location,
-                gender=gender
-            )
+            # 3. 处理用户头像
+            avatar_file = None
+            if user_info.get('avatarUrl'):
+                try:
+                    avatar_url = user_info['avatarUrl']
+                    # 下载头像图片
+                    req = urllib.request.Request(avatar_url, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req, timeout=10) as response:
+                        if response.status == 200:
+                            # 生成文件名，使用openid和时间戳
+                            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                            filename = f"avatar_{openid}_{timestamp}.png"
+                            # 保存到Django文件系统
+                            avatar_file = ContentFile(response.read(), name=filename)
+                except Exception as e:
+                    print(f"下载头像失败: {str(e)}")
+                    # 如果下载失败，不阻止用户创建，只是不设置头像
+                    avatar_file = None
             
-            # 设置头像（单独设置以避免create_user方法可能的限制）
+            # 4. 查找或创建用户
+            # 使用openid作为username存储
+            try:
+                user = models.User.objects.get(username=openid)
+                # 更新现有用户信息
+                user.nickname = user_info.get('nickName', openid)
+                user.gender = user_info.get('gender') if user_info.get('gender') else None
+                if ip_location:
+                    user.ip_location = ip_location
+            except models.User.DoesNotExist:
+                # 创建新用户
+                user = models.User.objects.create_user(
+                    username=openid,  # 使用openid作为username
+                    nickname=user_info.get('nickName', openid),
+                    gender=user_info.get('gender') if user_info.get('gender') else None,
+                    ip_location=ip_location
+                )
+            
+            # 5. 设置头像
             if avatar_file:
                 user.avatar = avatar_file
                 user.save()
             
-            # 构建avatar URL或返回空字符串
+            # 6. 构建返回数据
             avatar_url = request.build_absolute_uri(user.avatar.url) if user.avatar else ''
             
             return JsonResponse({
                 'status': 'success',
-                'message': 'User created successfully',
+                'message': '用户登录成功',
                 'user': {
-                    'username': user.username,
+                    'username': user.username,  # 返回openid
                     'nickname': user.nickname,
                     'ip_location': user.ip_location,
                     'gender': user.gender,
                     'avatar': avatar_url,
                 }
             })
-        except models.User.DoesNotExist:
-            return JsonResponse({
-                'status': 'error',
-                'message': '用户不存在'
-            })
+        
         except Exception as e:
             # 捕获所有其他异常并返回错误信息
+            print(f"登录过程异常: {str(e)}")
             return JsonResponse({
                 'status': 'error',
-                'message': f'创建用户失败: {str(e)}'
+                'message': f'登录失败: {str(e)}'
             })
-        
-
     else:
         return HttpResponse("Invalid request method")
 
