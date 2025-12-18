@@ -128,7 +128,7 @@ def createUser(request):
             if avatar_data and avatar_data[0]:
                 # 清理avatar字符串中的额外空格和引号
                 avatar = avatar_data[0].strip().strip('`"\'')
-            
+            print(avatar)
             # 获取并处理gender参数
             gender_data = request.POST.getlist('gender')
             gender = gender_data[0] if gender_data and gender_data[0] else None
