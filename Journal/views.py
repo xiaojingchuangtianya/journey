@@ -749,9 +749,14 @@ def search_locations(request):
             # 准备返回数据
             search_results = []
             for location in locations:
-                # 获取地点的主图
-                main_photo = location.photos.filter(is_main=True).first()
-                main_photo_url = request.build_absolute_uri(main_photo.image.url) if main_photo else None
+                # 获取地点的所有图片，随机返回一张
+                photos = list(location.photos.all())
+                if photos:
+                    import random
+                    random_photo = random.choice(photos)
+                    main_photo_url = request.build_absolute_uri(random_photo.image.url)
+                else:
+                    main_photo_url = None
                 
                 # 获取地点的点赞数
                 location_content_type = ContentType.objects.get_for_model(location)
