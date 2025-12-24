@@ -4,6 +4,7 @@ from django.http import HttpResponseForbidden
 from django.core.cache import cache
 import logging
 import sys
+import subprocess
 
 # 配置基本日志
 logging.basicConfig(
@@ -122,7 +123,7 @@ class IpBlockMiddleware:
             logger.error(f"【计数增加错误】增加失败计数时发生错误: {str(e)}", exc_info=True)
     
     def _add_ip_to_nginx_blocklist(self, ip):
-        """将被阻止的IP添加到Nginx阻止列表文件"""
+        """将被阻止的IP添加到Nginx阻止列表文件，并自动执行nginx reload进行热更新"""
         try:
             logger.info(f"【Nginx阻止】正在将IP {ip} 添加到Nginx阻止列表文件")
             
@@ -152,6 +153,14 @@ class IpBlockMiddleware:
                     f.write(f'deny {blocked_ip};\n')
             
             logger.info(f"【Nginx阻止成功】IP {ip} 已添加到Nginx阻止列表文件，当前阻止的IP总数: {len(blocked_ips)}")
-            logger.info(f"【Nginx提示】请确保Nginx配置中包含这个阻止列表文件，并已设置自动重新加载或手动执行 'nginx -s reload'")
+            
+            # 尝试自动执行nginx reload进行热更新
+            try:
+                # 根据不同操作系统执行相应的nginx reload命令
+                    # 在Linux/Unix上执行nginx reload
+                subprocess.run(['/home/nginx/sbin/nginx', '-s', 'reload'], check=True)
+                logger.info(f"【Nginx热更新成功】Linux/Unix系统：已成功执行nginx reload，更新了阻止IP列表")
+            except Exception as e:
+                logger.warning(f"【Nginx热更新失败】执行nginx reload时发生错误: {str(e)}，请手动执行 'nginx -s reload'")
         except Exception as e:
             logger.error(f"【Nginx阻止错误】将IP添加到Nginx阻止列表文件时发生错误: {str(e)}", exc_info=True)
