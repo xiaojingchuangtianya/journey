@@ -991,6 +991,7 @@ def get_location_detail(request, location_id):
             "user": location.user.nickname or location.user.username,
             "images": [request.build_absolute_uri(image.image.url) for image in location.photos.all()],
             "likes_count": likes_count,
+            "isCollected": location.user.favorites.filter(user=user, location=location).exists(),
             "isLiked": is_liked,
             "created_at": location.created_at.isoformat(),
             "comments": comments
