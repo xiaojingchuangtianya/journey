@@ -910,7 +910,6 @@ def get_location_detail(request, location_id):
         
         # 获取用户登录状态
         username = request.GET.get('username')
-        print(username)
         # 如果提供了username，尝试获取用户对象
         if username:
             try:
@@ -990,7 +989,7 @@ def get_location_detail(request, location_id):
             "user":  location.user.username,
             "images": [request.build_absolute_uri(image.image.url) for image in location.photos.all()],
             "likes_count": likes_count,
-            "isCollected": location.user.favorites.filter(user=user, location=location).exists(),
+            "isCollected": user.favorites.filter(location=location).exists(),
             "isLiked": is_liked,
             "created_at": location.created_at.isoformat(),
             "comments": comments
@@ -1243,4 +1242,5 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     # 计算距离
     distance = R * c
     return distance
+
 
