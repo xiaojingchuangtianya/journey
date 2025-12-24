@@ -6,7 +6,7 @@ urlpatterns = [
     path('location/<int:location_id>/', views.get_location_detail, name='地点详情'),
     path('createUser/', views.createUser, name='创建账号'),
     path('createComment/', views.createComment, name='创建评论'),
-
+    path('user-favorites/<str:username>/', views.get_user_favorites, name='获取用户收藏列表'),
     
     path('createLocation/', views.createLocation, name='创建地点'),
     path('changeLocation/', views.changeLocation, name='修改调整'),
