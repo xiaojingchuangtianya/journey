@@ -910,8 +910,7 @@ def get_location_detail(request, location_id):
         
         # 获取用户登录状态
         username = request.GET.get('username')
-        user = None
-        
+        print(username)
         # 如果提供了username，尝试获取用户对象
         if username:
             try:
@@ -988,7 +987,7 @@ def get_location_detail(request, location_id):
             "longitude": location.longitude,  # 经度
             "latitude": location.latitude,    # 纬度
             "address": location.address,      # 地点名字
-            "user": location.user.nickname or location.user.username,
+            "user":  location.user.username,
             "images": [request.build_absolute_uri(image.image.url) for image in location.photos.all()],
             "likes_count": likes_count,
             "isCollected": location.user.favorites.filter(user=user, location=location).exists(),
