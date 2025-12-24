@@ -168,7 +168,7 @@ def createUser(request):
                         'status': 'error',
                         'message': f'请求微信API失败，状态码: {response.status}'
                     })
-            print("获取session_key后")
+
             # 2. 使用session_key解密encryptedData获取用户信息
             pc = WXBizDataCrypt(APP_ID, session_key)
             try:
@@ -179,7 +179,7 @@ def createUser(request):
                     'status': 'error',
                     'message': f'解密用户数据失败: {str(e)}'
                 })
-            print("处理头像前")
+
             # 3. 处理用户头像
             avatar_file = None
             if user_info.get('avatarUrl'):
@@ -198,7 +198,6 @@ def createUser(request):
                     print(f"下载头像失败: {str(e)}")
                     # 如果下载失败，不阻止用户创建，只是不设置头像
                     avatar_file = None
-            print("处理头像后")
             # 4. 查找或创建用户
             # 使用openid作为username存储
             try:
@@ -241,7 +240,6 @@ def createUser(request):
                     gender=user_info.get('gender') if user_info.get('gender') else None,
                     ip_location=ip_location_value
                 )
-            print("创建用户后")
             # 5. 设置头像
             if avatar_file:
                 user.avatar = avatar_file
