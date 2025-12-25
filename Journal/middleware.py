@@ -23,10 +23,9 @@ NGINX_BLOCKED_IPS_FILE = '/home/nginx/blocked_ips.conf'
 MAX_FAILED_ATTEMPTS = 3  # 最大失败尝试次数
 BLOCK_DURATION = 3600    # 记录保留时长（秒），默认1小时
 CACHE_PREFIX = 'ip_access_'
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'example.com']  # 允许的host列表，这些host不会被限制
+ALLOWED_HOSTS = ['183.63.111.186t']  # 允许的host列表，这些host不会被限制
 
-# 允许的host列表，这些host不会受到IP限制机制的影响
-# ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'example.com']  # 已移除，使用类内部配置
+
 
 class IpBlockMiddleware:
     """
