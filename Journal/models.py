@@ -139,7 +139,7 @@ class Photo(models.Model):
 class Like(models.Model):
     """点赞模型，支持对不同类型对象的点赞"""
     # 点赞用户
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='likes', verbose_name='点赞用户')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='likes', verbose_name='点赞用户')
     # 关联内容类型
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, verbose_name='内容类型')
     # 关联对象ID
@@ -153,8 +153,6 @@ class Like(models.Model):
         app_label = 'Journal'
         verbose_name = '点赞'
         verbose_name_plural = '点赞'
-        # 确保每个用户对每个对象只能点赞一次
-        unique_together = ('user', 'content_type', 'object_id')
         ordering = ['-created_at']  # 按点赞时间降序排列
     
     def __str__(self):
@@ -180,5 +178,6 @@ class Favorite(models.Model):
     
     def __str__(self):
         return f'{self.user.nickname} 收藏了 {self.location.title}'
+
 
 
