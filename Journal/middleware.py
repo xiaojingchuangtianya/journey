@@ -19,6 +19,15 @@ logger.setLevel(logging.INFO)
 # Nginx阻止IP文件路径
 NGINX_BLOCKED_IPS_FILE = '/home/nginx/blocked_ips.conf'
 
+# 配置参数
+MAX_FAILED_ATTEMPTS = 3  # 最大失败尝试次数
+BLOCK_DURATION = 3600    # 记录保留时长（秒），默认1小时
+CACHE_PREFIX = 'ip_access_'
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'example.com']  # 允许的host列表，这些host不会被限制
+
+# 允许的host列表，这些host不会受到IP限制机制的影响
+# ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'example.com']  # 已移除，使用类内部配置
+
 class IpBlockMiddleware:
     """
     IP访问限制中间件
@@ -26,21 +35,23 @@ class IpBlockMiddleware:
     不再直接拦截请求，拦截工作由nginx负责
     """
     
-    # 配置参数
-    MAX_FAILED_ATTEMPTS = 3  # 最大失败尝试次数
-    BLOCK_DURATION = 3600    # 记录保留时长（秒），默认1小时
-    CACHE_PREFIX = 'ip_access_'
-    
     def __init__(self, get_response):
         self.get_response = get_response
         logger.info("IP访问记录中间件已初始化")
-        logger.info(f"中间件配置：最大失败次数={self.MAX_FAILED_ATTEMPTS}, 记录时长={self.BLOCK_DURATION}秒")
+        logger.info(f"中间件配置：最大失败次数={MAX_FAILED_ATTEMPTS}, 记录时长={BLOCK_DURATION}秒")
+        logger.info(f"允许的host列表: {ALLOWED_HOSTS}")
         logger.info(f"Nginx阻止IP文件路径: {NGINX_BLOCKED_IPS_FILE}")
         
         # 确保Nginx阻止IP文件目录存在
         os.makedirs(os.path.dirname(NGINX_BLOCKED_IPS_FILE), exist_ok=True)
     
     def __call__(self, request):
+        # 检查请求的host是否在允许列表中
+        request_host = request.get_host().split(':')[0]  # 移除端口部分
+        if request_host in ALLOWED_HOSTS:
+            logger.info(f"Host {request_host} 在允许列表中，跳过IP限制检查")
+            return self.get_response(request)
+        
         # 获取客户端IP地址
         client_ip = self._get_client_ip(request)
         
@@ -50,9 +61,9 @@ class IpBlockMiddleware:
             logger.info(f"记录来自IP {client_ip} 的请求，URL: {request.path}")
             
             # 获取当前失败次数
-            cache_key = f'{self.CACHE_PREFIX}failed_{client_ip}'
+            cache_key = f'{CACHE_PREFIX}failed_{client_ip}'
             current_attempts = cache.get(cache_key, 0)
-            logger.info(f"IP {client_ip} 当前失败次数: {current_attempts}/{self.MAX_FAILED_ATTEMPTS}")
+            logger.info(f"IP {client_ip} 当前失败次数: {current_attempts}/{MAX_FAILED_ATTEMPTS}")
         except Exception as e:
             logger.error(f"记录IP访问时发生错误: {str(e)}", exc_info=True)
         
@@ -90,16 +101,16 @@ class IpBlockMiddleware:
         """增加失败尝试次数，并在超过阈值时记录到nginx阻止列表"""
         try:
             # 获取当前失败次数
-            cache_key = f'{self.CACHE_PREFIX}failed_{ip}'
+            cache_key = f'{CACHE_PREFIX}failed_{ip}'
             attempts = cache.get(cache_key, 0)
             
             # 增加计数
             attempts += 1
-            cache.set(cache_key, attempts, self.BLOCK_DURATION)
+            cache.set(cache_key, attempts, BLOCK_DURATION)
             
             # 检查是否超过阈值
-            if attempts >= self.MAX_FAILED_ATTEMPTS:
-                logger.warning(f"IP {ip} 失败次数达到阈值 {attempts}/{self.MAX_FAILED_ATTEMPTS}，将添加到nginx阻止列表")
+            if attempts >= MAX_FAILED_ATTEMPTS:
+                logger.warning(f"IP {ip} 失败次数达到阈值 {attempts}/{MAX_FAILED_ATTEMPTS}，将添加到nginx阻止列表")
                 
                 # 将被阻止的IP写入文件，供Nginx直接拒绝访问
                 self._add_ip_to_nginx_blocklist(ip)
