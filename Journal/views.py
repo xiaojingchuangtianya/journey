@@ -989,7 +989,7 @@ def get_location_detail(request, location_id):
             "user":  location.user.username,
             "images": [request.build_absolute_uri(image.image.url) for image in location.photos.all()],
             "likes_count": likes_count,
-            "isCollected": user.favorites.filter(location=location).exists(),
+            "isCollected": user.favorites.filter(location=location).exists() if user and user.is_authenticated else False,
             "isLiked": is_liked,
             "created_at": location.created_at.isoformat(),
             "comments": comments
@@ -1242,5 +1242,6 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     # 计算距离
     distance = R * c
     return distance
+
 
 
