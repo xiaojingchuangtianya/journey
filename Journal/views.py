@@ -36,7 +36,7 @@ def determine_type(image_count):
 
 
 # 获取前10条的的地点信息
-# 规则：获取玩家前10信息时，不会下发，在触发往下拉才开始需要用户进行注册，同理在创作时也会要求用户进行注册
+# 规则：获取玩家前10信息时，不会下发，在触发往下拉开始时需要用户进行注册，同理在创作时也会要求用户进行注册
 # csrf_token应尽早下发，保证用户在创作时，有对应数据
 # 
 def JournalMessage(request,startIndex=0):
@@ -426,25 +426,23 @@ def likeComment(request):
     pass
 
 
-def toggle_like_location(request):
+def toggle_location_like(request):
     """切换地点点赞状态的视图函数
     如果用户已点赞地点，则取消点赞；如果未点赞，则添加点赞
+    支持匿名点赞（无username）
     """
-    if request.method == 'POST':
+    if request.method == 'GET':
         try:
             # 获取请求参数
-            username = request.POST.get('username')
-            location_id = request.POST.get('location_id')
+            username = request.GET.get('username')
+            location_id = request.GET.get('location_id')
             
             # 验证必要参数
-            if not username or not location_id:
+            if not location_id:
                 return JsonResponse({
                     'status': 'error',
-                    'message': '用户名和地点ID不能为空！'
+                    'message': '地点ID不能为空！'
                 })
-            
-            # 获取用户对象
-            user = models.User.objects.get(username=username)
             
             # 获取地点对象
             location = models.Location.objects.get(id=location_id)
@@ -452,27 +450,49 @@ def toggle_like_location(request):
             # 获取地点的ContentType
             location_content_type = ContentType.objects.get_for_model(location)
             
-            # 检查用户是否已点赞该地点
-            existing_like = models.Like.objects.filter(
-                user=user,
-                content_type=location_content_type,
-                object_id=location.id
-            ).first()
+            is_liked = False
+            message = ''
             
-            if existing_like:
-                # 如果已点赞，则取消点赞（删除点赞记录）
-                existing_like.delete()
-                is_liked = False
-                message = '取消点赞成功！'
+            if username:
+                # 如果提供了用户名，查找用户并处理用户点赞逻辑
+                try:
+                    user = models.User.objects.get(username=username)
+                    
+                    # 检查用户是否已点赞该地点
+                    existing_like = models.Like.objects.filter(
+                        user=user,
+                        content_type=location_content_type,
+                        object_id=location.id
+                    ).first()
+                    
+                    if existing_like:
+                        # 如果已点赞，则取消点赞（删除点赞记录）
+                        existing_like.delete()
+                        is_liked = False
+                        message = '取消点赞成功！'
+                    else:
+                        # 如果未点赞，则添加点赞（创建点赞记录）
+                        models.Like.objects.create(
+                            user=user,
+                            content_type=location_content_type,
+                            object_id=location.id
+                        )
+                        is_liked = True
+                        message = '点赞成功！'
+                except models.User.DoesNotExist:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': '用户不存在！'
+                    })
             else:
-                # 如果未点赞，则添加点赞（创建点赞记录）
+                # 如果没有提供用户名，直接创建匿名点赞记录（user为空）
                 models.Like.objects.create(
-                    user=user,
+                    user=None,
                     content_type=location_content_type,
                     object_id=location.id
                 )
                 is_liked = True
-                message = '点赞成功！'
+                message = '匿名点赞成功！'
             
             # 获取更新后的点赞数
             likes_count = models.Like.objects.filter(
@@ -487,11 +507,6 @@ def toggle_like_location(request):
                 'likes_count': likes_count
             })
             
-        except models.User.DoesNotExist:
-            return JsonResponse({
-                'status': 'error',
-                'message': '用户不存在！'
-            })
         except models.Location.DoesNotExist:
             return JsonResponse({
                 'status': 'error',
@@ -505,7 +520,7 @@ def toggle_like_location(request):
     else:
         return JsonResponse({
             'status': 'error',
-            'message': '只支持POST请求！'
+            'message': '只支持GET请求！'
         })
 
 
@@ -1242,6 +1257,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     # 计算距离
     distance = R * c
     return distance
+
 
 
 
