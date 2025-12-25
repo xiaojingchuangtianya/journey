@@ -156,7 +156,7 @@ class Like(models.Model):
         ordering = ['-created_at']  # 按点赞时间降序排列
     
     def __str__(self):
-        return f'{self.user.nickname} 点赞了 {self.content_type.model} {self.object_id}'
+        return f'{self.user.nickname if self.user else "未知用户"} 点赞了 {self.content_type.model} {self.object_id}'
 
 
 class Favorite(models.Model):
@@ -178,6 +178,7 @@ class Favorite(models.Model):
     
     def __str__(self):
         return f'{self.user.nickname} 收藏了 {self.location.title}'
+
 
 
 
