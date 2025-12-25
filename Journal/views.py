@@ -925,6 +925,7 @@ def get_location_detail(request, location_id):
         
         # 获取用户登录状态
         username = request.GET.get('username')
+        user = None
         # 如果提供了username，尝试获取用户对象
         if username:
             try:
@@ -934,7 +935,7 @@ def get_location_detail(request, location_id):
         
         # 获取地点的ContentType
         location_content_type = ContentType.objects.get_for_model(models.Location)
-        
+
         # 设置点赞状态
         is_liked = False
         if user:
@@ -949,7 +950,6 @@ def get_location_detail(request, location_id):
         comments = []
         # 查询该地点的所有父级评论，按创建时间降序排列
         parent_comments = Comment.objects.filter(location=location, is_parent=True).order_by('-created_at')
-        
         for comment in parent_comments:
             # 获取评论的回复
             replies = []
@@ -1257,7 +1257,3 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     # 计算距离
     distance = R * c
     return distance
-
-
-
-
