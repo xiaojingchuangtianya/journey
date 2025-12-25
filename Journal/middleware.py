@@ -23,7 +23,7 @@ NGINX_BLOCKED_IPS_FILE = '/home/nginx/blocked_ips.conf'
 MAX_FAILED_ATTEMPTS = 3  # 最大失败尝试次数
 BLOCK_DURATION = 3600    # 记录保留时长（秒），默认1小时
 CACHE_PREFIX = 'ip_access_'
-ALLOWED_HOSTS = ['183.63.111.186t']  # 允许的host列表，这些host不会被限制
+ALLOWED_HOSTS = ['183.63.111.186']  # 允许的host列表，这些host不会被限制
 
 
 
@@ -46,14 +46,12 @@ class IpBlockMiddleware:
     
     def __call__(self, request):
         # 检查请求的host是否在允许列表中
-        request_host = request.get_host().split(':')[0]  # 移除端口部分
-        if request_host in ALLOWED_HOSTS:
-            logger.info(f"Host {request_host} 在允许列表中，跳过IP限制检查")
-            return self.get_response(request)
-        
         # 获取客户端IP地址
         client_ip = self._get_client_ip(request)
-        
+        if client_ip in ALLOWED_HOSTS:
+            logger.info(f"IP {client_ip} 在允许列表中，跳过IP限制检查")
+            return self.get_response(request)
+          
         # 处理请求前进行记录和检查，但不再拦截
         try:
             # 记录访问
