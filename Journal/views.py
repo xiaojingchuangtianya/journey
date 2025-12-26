@@ -21,6 +21,9 @@ from urllib.parse import urlparse
 from datetime import datetime
 from .WXBizDataCrypt import WXBizDataCrypt
 from Journey.settings import APP_ID, APP_SECRET
+# 添加PIL库导入用于图片压缩
+from PIL import Image
+from io import BytesIO
 
 def determine_type(image_count):
     """根据图片数量确定type返回值"""
@@ -275,7 +278,137 @@ def createUser(request):
 
 def createLocation(request):
     """创建地点视图函数"""
-    pass
+    if request.method == 'POST':
+        try:
+            # 获取必要参数
+            title = request.POST.get('title')
+            content = request.POST.get('content')
+            address = request.POST.get('address')
+            username = request.POST.get('username')
+            
+            # 获取可选参数
+            longitude = request.POST.get('longitude')
+            latitude = request.POST.get('latitude')
+            
+            # 转换经纬度为浮点数（如果提供）
+            if longitude:
+                longitude = float(longitude)
+            if latitude:
+                latitude = float(latitude)
+            
+            # 验证必要参数
+            if not title or not content or not address or not username:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '标题、内容、地址和用户名不能为空！'
+                })
+            
+            # 获取用户对象
+            user = User.objects.get(username=username)
+            
+            # 创建地点
+            location = models.Location.objects.create(
+                title=title,
+                content=content,
+                address=address,
+                longitude=longitude,
+                latitude=latitude,
+                user=user
+            )
+            
+            # 图片压缩函数
+            def compress_image(image_file, username, quality=75, max_width=1200):
+                # 打开图片
+                img = Image.open(image_file)
+                
+                # 获取图片原始大小
+                width, height = img.size
+                
+                # 如果图片宽度超过最大宽度，按比例缩放
+                if width > max_width:
+                    ratio = max_width / float(width)
+                    new_height = int(float(height) * float(ratio))
+                    img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+                
+                # 如果是RGBA模式，转换为RGB
+                if img.mode == 'RGBA':
+                    img = img.convert('RGB')
+                
+                # 保存到内存中
+                buffer = BytesIO()
+                img.save(buffer, format='JPEG', quality=quality, optimize=True, progressive=True)
+                buffer.seek(0)
+                
+                # 创建Django的ContentFile对象
+                compressed_file = ContentFile(buffer.read())
+                
+                # 设置文件名，格式：用户名-时间（精确到秒）.jpg
+                current_time = datetime.now().strftime('%Y%m%d%H%M%S')
+                new_name = f"{username}-{current_time}.jpg"
+                
+                return compressed_file, new_name
+            
+            # 处理主图上传
+            main_photo = request.FILES.get('main_photo')
+            if main_photo:
+                # 压缩图片，传入用户名
+                compressed_file, new_name = compress_image(main_photo, user.username)
+                
+                # 创建Photo对象
+                models.Photo.objects.create(
+                    location=location,
+                    image=ContentFile(compressed_file.read(), name=new_name),
+                    is_main=True
+                )
+            
+            # 处理多张普通图片上传
+            photos = request.FILES.getlist('photo')
+            for idx, photo in enumerate(photos):
+                # 压缩图片，传入用户名
+                compressed_file, new_name = compress_image(photo, user.username)
+                # 为多张图片添加序号后缀，确保唯一性
+                base_name, ext = os.path.splitext(new_name)
+                final_name = f"{base_name}-{idx+1}{ext}"
+                
+                # 创建Photo对象
+                models.Photo.objects.create(
+                    location=location,
+                    image=ContentFile(compressed_file.read(), name=final_name),
+                    is_main=False
+                )
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': '地点创建成功！',
+                'location_id': location.id
+            })
+            
+        except User.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': '用户不存在！'
+            })
+        except ValueError as e:
+            if 'could not convert string to float' in str(e):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '经纬度格式不正确，请输入有效的数字！'
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': str(e)
+                })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'创建地点时发生错误: {str(e)}'
+            })
+    else:
+        return JsonResponse({
+            'status': 'error',
+            'message': '无效的请求方法，请使用POST请求！'
+        })
 
 
 # 修改地点
