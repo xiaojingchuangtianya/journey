@@ -15,6 +15,7 @@ import os
 import random
 import urllib.request
 import json
+import base64
 from django.core.files.base import ContentFile
 import os
 from urllib.parse import urlparse
@@ -319,9 +320,9 @@ def createLocation(request):
             )
             
             # 图片压缩函数
-            def compress_image(image_file, username, quality=75, max_width=1200):
+            def compress_image(image_data, username, quality=75, max_width=1200):
                 # 打开图片
-                img = Image.open(image_file)
+                img = Image.open(image_data)
                 
                 # 获取图片原始大小
                 width, height = img.size
@@ -350,35 +351,68 @@ def createLocation(request):
                 
                 return compressed_file, new_name
             
-            # 处理主图上传
-            main_photo = request.FILES.get('main_photo')
+            # 处理主图上传（支持Base64编码）
+            main_photo = request.POST.get('main_photo')
             if main_photo:
-                # 压缩图片，传入用户名
-                compressed_file, new_name = compress_image(main_photo, user.username)
-                
-                # 创建Photo对象
-                models.Photo.objects.create(
-                    location=location,
-                    image=ContentFile(compressed_file.read(), name=new_name),
-                    is_main=True
-                )
+                try:
+                    # 解码Base64图片数据
+                    if main_photo.startswith('data:image'):
+                        # 移除data:image/jpeg;base64,前缀
+                        main_photo = main_photo.split(',')[1]
+                    image_data = base64.b64decode(main_photo)
+                    image_file = BytesIO(image_data)
+                    
+                    # 压缩图片，传入用户名
+                    compressed_file, new_name = compress_image(image_file, user.username)
+                    
+                    # 创建Photo对象
+                    models.Photo.objects.create(
+                        location=location,
+                        image=ContentFile(compressed_file.read(), name=new_name),
+                        is_main=True
+                    )
+                except Exception as e:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': f'主图处理失败: {str(e)}'
+                    })
             
-            # 处理多张普通图片上传
-            photos = request.FILES.getlist('photo')
-            for idx, photo in enumerate(photos):
-                # 压缩图片，传入用户名
-                compressed_file, new_name = compress_image(photo, user.username)
-                # 为多张图片添加序号后缀，确保唯一性
-                base_name, ext = os.path.splitext(new_name)
-                final_name = f"{base_name}-{idx+1}{ext}"
-                
-                # 创建Photo对象
-                models.Photo.objects.create(
-                    location=location,
-                    image=ContentFile(compressed_file.read(), name=final_name),
-                    is_main=False
-                )
-            
+            # 处理多张普通图片上传（支持Base64编码）
+            photos = request.POST.get('photos')  # 假设是JSON数组格式的Base64字符串
+            if photos:
+                try:
+                    photos_list = json.loads(photos)
+                    for idx, photo_base64 in enumerate(photos_list):
+                        try:
+                            # 解码Base64图片数据
+                            if photo_base64.startswith('data:image'):
+                                photo_base64 = photo_base64.split(',')[1]
+                            image_data = base64.b64decode(photo_base64)
+                            image_file = BytesIO(image_data)
+                            
+                            # 压缩图片，传入用户名
+                            compressed_file, new_name = compress_image(image_file, user.username)
+                            # 为多张图片添加序号后缀，确保唯一性
+                            base_name, ext = os.path.splitext(new_name)
+                            final_name = f"{base_name}-{idx+1}{ext}"
+                            
+                            # 创建Photo对象
+                            models.Photo.objects.create(
+                                location=location,
+                                image=ContentFile(compressed_file.read(), name=final_name),
+                                is_main=False
+                            )
+                        except Exception as e:
+                            return JsonResponse({
+                                'status': 'error',
+                                'message': f'第{idx+1}张图片处理失败: {str(e)}'
+                            })
+                except json.JSONDecodeError:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': '图片数据格式错误，应为JSON数组格式'
+                    })
+
             return JsonResponse({
                 'status': 'success',
                 'message': '地点创建成功！',
