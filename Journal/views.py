@@ -27,6 +27,8 @@ from io import BytesIO
 
 def determine_type(image_count):
     """根据图片数量确定type返回值"""
+    if image_count == 0:
+        return "none"
     if image_count == 1:
         return "single"
     elif image_count == 3:
