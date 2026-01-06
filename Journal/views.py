@@ -341,12 +341,18 @@ def createLocation(request):
                 buffer = BytesIO()
                 
                 # 使用WebP格式（更小的文件大小）
-                if use_webp and Image.HAS_WEBP:
-                    img.save(buffer, format='WEBP', quality=quality, optimize=True)
-                    file_extension = '.webp'
+                file_extension = '.jpg'
+                if use_webp:
+                    try:
+                        img.save(buffer, format='WEBP', quality=quality, optimize=True)
+                        file_extension = '.webp'
+                    except (ValueError, IOError) as e:
+                        # WebP不支持，回退到JPEG格式
+                        buffer.seek(0)
+                        buffer.truncate()
+                        img.save(buffer, format='JPEG', quality=quality, optimize=True, progressive=True)
                 else:
                     img.save(buffer, format='JPEG', quality=quality, optimize=True, progressive=True)
-                    file_extension = '.jpg'
                 
                 buffer.seek(0)
                 
