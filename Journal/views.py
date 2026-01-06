@@ -319,8 +319,8 @@ def createLocation(request):
                 user=user
             )
             
-            # 图片压缩函数
-            def compress_image(image_data, username, quality=75, max_width=1200):
+            # 图片压缩函数（优化版）
+            def compress_image(image_data, username, quality=70, max_width=1000, use_webp=True):
                 # 打开图片
                 img = Image.open(image_data)
                 
@@ -339,15 +339,23 @@ def createLocation(request):
                 
                 # 保存到内存中
                 buffer = BytesIO()
-                img.save(buffer, format='JPEG', quality=quality, optimize=True, progressive=True)
+                
+                # 使用WebP格式（更小的文件大小）
+                if use_webp and Image.HAS_WEBP:
+                    img.save(buffer, format='WEBP', quality=quality, optimize=True)
+                    file_extension = '.webp'
+                else:
+                    img.save(buffer, format='JPEG', quality=quality, optimize=True, progressive=True)
+                    file_extension = '.jpg'
+                
                 buffer.seek(0)
                 
                 # 创建Django的ContentFile对象
                 compressed_file = ContentFile(buffer.read())
                 
-                # 设置文件名，格式：用户名-时间（精确到秒）.jpg
+                # 设置文件名，格式：用户名-时间（精确到秒）.格式
                 current_time = datetime.now().strftime('%Y%m%d%H%M%S')
-                new_name = f"{username}-{current_time}.jpg"
+                new_name = f"{username}-{current_time}{file_extension}"
                 
                 return compressed_file, new_name
             
