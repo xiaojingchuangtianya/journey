@@ -45,9 +45,15 @@ def determine_type(image_count):
 # 规则：获取玩家前10信息时，不会下发，在触发往下拉开始时需要用户进行注册，同理在创作时也会要求用户进行注册
 # csrf_token应尽早下发，保证用户在创作时，有对应数据
 # 
-def JournalMessage(request,startIndex=0):
+def JournalMessage(request):
     # 增加容错处理，后续还会有点赞的数量关联，在此给用户下发csrf_token
     try:
+        # 获取startIndex参数，默认为0
+        startIndex = request.GET.get('startIndex', 0)
+        try:
+            startIndex = int(startIndex)
+        except (ValueError, TypeError):
+            startIndex = 0
         # 获取所有地点，并按点赞数从高到低排序
         locations_with_likes = []
         # 获取Location模型的ContentType
