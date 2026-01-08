@@ -9,11 +9,11 @@ urlpatterns = [
     path('user-favorites/<str:username>/', views.get_user_favorites, name='获取用户收藏列表'),
     path('toggle-favorite/', views.toggle_favorite, name='切换收藏状态'),
     path('toggle_location_like/', views.toggle_location_like, name='切换地点点赞状态'),
-
+    path('createLocation/', views.createLocation, name='创建地点'),
 
     
 
-    path('createLocation/', views.createLocation, name='创建地点'),
+    
     path('changeLocation/', views.changeLocation, name='修改调整'),
 
     path('showComment/<int:location_id>/', views.showComment, name='展示评论'),

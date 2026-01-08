@@ -53,29 +53,20 @@ def determine_type(image_count):
 def JournalMessage(request):
     # 增加容错处理，后续还会有点赞的数量关联，在此给用户下发csrf_token
     try:
-        # 记录函数调用日志
-        logger.info(f"JournalMessage函数被调用，请求IP: {request.META.get('REMOTE_ADDR')}")
-        
         # 获取startIndex参数，默认为0
         startIndex = request.GET.get('startIndex', 0)
-        logger.info(f"获取到的startIndex参数值: {startIndex}")
-        
         try:
             startIndex = int(startIndex)
-            logger.info(f"转换后的startIndex值: {startIndex}")
         except (ValueError, TypeError) as e:
-            logger.warning(f"startIndex参数转换失败: {e}，使用默认值0")
             startIndex = 0
             
         # 获取所有地点，并按点赞数从高到低排序
         locations_with_likes = []
         # 获取Location模型的ContentType
         location_content_type = ContentType.objects.get_for_model(models.Location)
-        logger.info(f"获取到Location模型的ContentType: {location_content_type}")
         
         # 获取所有地点
         all_locations = models.Location.objects.all()
-        logger.info(f"获取到的地点总数: {all_locations.count()}")
         
         # 为每个地点计算点赞数
         for location in all_locations:
@@ -84,7 +75,6 @@ def JournalMessage(request):
                 object_id=location.id
             ).count()
             locations_with_likes.append((location, likes_count))
-            logger.debug(f"地点ID: {location.id}，点赞数: {likes_count}")
         
         # 按点赞数从高到低排序
         locations_with_likes.sort(key=lambda x: x[1], reverse=True)
@@ -299,8 +289,10 @@ def createUser(request):
         return HttpResponse("Invalid request method")
 
 
-# 创建地点
+# 从settings.py中导入高德地图API配置
+from Journey.settings import AMAP_KEY, AMAP_REVERSE_GEOCODE_URL
 
+# 创建地点
 def createLocation(request):
     """创建地点视图函数"""
     if request.method == 'POST':
@@ -331,6 +323,32 @@ def createLocation(request):
             # 获取用户对象
             user = User.objects.get(username=username)
             
+            # 根据经纬度获取区域信息
+            region = None
+            if longitude and latitude:
+                try:
+                    # 构建高德地图逆地理编码请求URL
+                    url = f"{AMAP_REVERSE_GEOCODE_URL}?key={AMAP_KEY}&location={longitude},{latitude}&extensions=base"
+                    
+                    # 发送请求
+                    response = urllib.request.urlopen(url)
+                    data = json.loads(response.read().decode('utf-8'))
+                    
+                    # 解析响应获取区域信息
+                    if data.get('status') == '1' and data.get('regeocode'):
+                        address_component = data['regeocode'].get('addressComponent')
+                        if address_component:
+                            # 获取城市和区域
+                            city = address_component.get('city')
+                            district = address_component.get('district')
+                            
+                            # 只处理广州市的区域
+                            if city == '广州市' and district:
+                                region = district
+                except Exception as e:
+                    print(f"获取区域信息失败: {str(e)}")
+                    # 出错时不影响主要功能，继续执行
+            
             # 创建地点
             location = models.Location.objects.create(
                 title=title,
@@ -338,7 +356,8 @@ def createLocation(request):
                 address=address,
                 longitude=longitude,
                 latitude=latitude,
-                user=user
+                user=user,
+                region=region  # 设置区域信息
             )
             
             # 图片压缩函数（优化版）

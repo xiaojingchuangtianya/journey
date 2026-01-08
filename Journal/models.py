@@ -60,6 +60,8 @@ class Location(models.Model):
     content = models.TextField(verbose_name='内容')
     # 时间（创建时间）
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    # 区域
+    region = models.CharField(max_length=100, null=True, blank=True, verbose_name='区域')
     # 地址
     address = models.CharField(max_length=300, verbose_name='地址')
     # 经度
@@ -178,6 +180,7 @@ class Favorite(models.Model):
     
     def __str__(self):
         return f'{self.user.nickname} 收藏了 {self.location.title}'
+
 
 
 
