@@ -1,3 +1,8 @@
+import logging
+
+# 创建日志记录器
+logger = logging.getLogger(__name__)
+
 from Journal.models import User
 from Journal import models 
 from django.http import HttpResponse, JsonResponse
@@ -48,19 +53,29 @@ def determine_type(image_count):
 def JournalMessage(request):
     # 增加容错处理，后续还会有点赞的数量关联，在此给用户下发csrf_token
     try:
+        # 记录函数调用日志
+        logger.info(f"JournalMessage函数被调用，请求IP: {request.META.get('REMOTE_ADDR')}")
+        
         # 获取startIndex参数，默认为0
         startIndex = request.GET.get('startIndex', 0)
+        logger.info(f"获取到的startIndex参数值: {startIndex}")
+        
         try:
             startIndex = int(startIndex)
-        except (ValueError, TypeError):
+            logger.info(f"转换后的startIndex值: {startIndex}")
+        except (ValueError, TypeError) as e:
+            logger.warning(f"startIndex参数转换失败: {e}，使用默认值0")
             startIndex = 0
+            
         # 获取所有地点，并按点赞数从高到低排序
         locations_with_likes = []
         # 获取Location模型的ContentType
         location_content_type = ContentType.objects.get_for_model(models.Location)
+        logger.info(f"获取到Location模型的ContentType: {location_content_type}")
         
         # 获取所有地点
         all_locations = models.Location.objects.all()
+        logger.info(f"获取到的地点总数: {all_locations.count()}")
         
         # 为每个地点计算点赞数
         for location in all_locations:
@@ -69,6 +84,7 @@ def JournalMessage(request):
                 object_id=location.id
             ).count()
             locations_with_likes.append((location, likes_count))
+            logger.debug(f"地点ID: {location.id}，点赞数: {likes_count}")
         
         # 按点赞数从高到低排序
         locations_with_likes.sort(key=lambda x: x[1], reverse=True)
