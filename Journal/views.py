@@ -303,6 +303,7 @@ def createLocation(request):
             content = request.POST.get('content')
             address = request.POST.get('address')
             username = request.POST.get('username')
+            region = request.POST.get('region')  # 直接从客户端接收region参数
             
             # 获取可选参数
             longitude = request.POST.get('longitude')
@@ -324,60 +325,6 @@ def createLocation(request):
             # 获取用户对象
             user = User.objects.get(username=username)
             
-            # 根据经纬度获取区域信息
-            region = None
-            if longitude and latitude:
-                try:
-                    # 构建请求参数
-                    params = {
-                        'key': AMAP_KEY,
-                        'location': f"{longitude},{latitude}",
-                        'extensions': 'base'
-                    }
-                    
-                    # 对参数进行URL编码和排序
-                    sorted_params = sorted(params.items())
-                    encoded_params = urllib.parse.urlencode(sorted_params)
-                    
-                    # 生成签名
-                    signature = f"{encoded_params}&key={AMAP_SECURITY_KEY}"
-                    signature = signature.encode('utf-8')
-                    signature = hashlib.md5(signature).hexdigest().upper()
-                    
-                    # 构建完整的请求URL
-                    url = f"{AMAP_REVERSE_GEOCODE_URL}?{encoded_params}&sig={signature}"
-                    
-                    # 添加日志记录请求URL
-                    logger.info(f"逆地理编码请求URL: {url}")
-                    
-                    # 发送请求
-                    response = urllib.request.urlopen(url)
-                    data = json.loads(response.read().decode('utf-8'))
-                    
-                    # 添加日志记录响应数据
-                    logger.info(f"逆地理编码响应数据: {data}")
-                    
-                    # 解析响应获取区域信息
-                    if data.get('status') == '1' and data.get('regeocode'):
-                        address_component = data['regeocode'].get('addressComponent')
-                        if address_component:
-                            # 获取城市和区域
-                            city = address_component.get('city')
-                            district = address_component.get('district')
-                            
-                            # 添加日志记录城市和区域信息
-                            logger.info(f"获取到的城市: {city}, 区域: {district}")
-                            
-                            # 如果是广州市，只存区域；否则，存市+区域
-                            if city and district:
-                                if city == '广州市':
-                                    region = district
-                                else:
-                                    region = f"{city}{district}"
-                except Exception as e:
-                    print(f"获取区域信息失败: {str(e)}")
-                    # 出错时不影响主要功能，继续执行
-            
             # 创建地点
             location = models.Location.objects.create(
                 title=title,
@@ -386,7 +333,7 @@ def createLocation(request):
                 longitude=longitude,
                 latitude=latitude,
                 user=user,
-                region=region  # 设置区域信息
+                region=region  # 使用客户端传递的region参数
             )
             
             # 图片压缩函数（优化版）
