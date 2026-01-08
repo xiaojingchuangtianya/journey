@@ -330,9 +330,15 @@ def createLocation(request):
                     # 构建高德地图逆地理编码请求URL
                     url = f"{AMAP_REVERSE_GEOCODE_URL}?key={AMAP_KEY}&location={longitude},{latitude}&extensions=base"
                     
+                    # 添加日志记录请求URL
+                    logger.info(f"逆地理编码请求URL: {url}")
+                    
                     # 发送请求
                     response = urllib.request.urlopen(url)
                     data = json.loads(response.read().decode('utf-8'))
+                    
+                    # 添加日志记录响应数据
+                    logger.info(f"逆地理编码响应数据: {data}")
                     
                     # 解析响应获取区域信息
                     if data.get('status') == '1' and data.get('regeocode'):
@@ -342,9 +348,15 @@ def createLocation(request):
                             city = address_component.get('city')
                             district = address_component.get('district')
                             
-                            # 只处理广州市的区域
-                            if city == '广州市' and district:
-                                region = district
+                            # 添加日志记录城市和区域信息
+                            logger.info(f"获取到的城市: {city}, 区域: {district}")
+                            
+                            # 如果是广州市，只存区域；否则，存市+区域
+                            if city and district:
+                                if city == '广州市':
+                                    region = district
+                                else:
+                                    region = f"{city}{district}"
                 except Exception as e:
                     print(f"获取区域信息失败: {str(e)}")
                     # 出错时不影响主要功能，继续执行
