@@ -1,8 +1,11 @@
 import logging
-
 # 创建日志记录器
 logger = logging.getLogger(__name__)
-
+# 从settings.py中导入高德地图API配置的导入
+# 导入必要的模块用于生成数字签名
+import hashlib
+import urllib.parse
+from Journey.settings import APP_ID, APP_SECRET, AMAP_KEY, AMAP_SECURITY_KEY, AMAP_REVERSE_GEOCODE_URL
 from Journal.models import User
 from Journal import models 
 from django.http import HttpResponse, JsonResponse
@@ -289,8 +292,6 @@ def createUser(request):
         return HttpResponse("Invalid request method")
 
 
-# 从settings.py中导入高德地图API配置
-from Journey.settings import AMAP_KEY, AMAP_REVERSE_GEOCODE_URL
 
 # 创建地点
 def createLocation(request):
@@ -327,8 +328,24 @@ def createLocation(request):
             region = None
             if longitude and latitude:
                 try:
-                    # 构建高德地图逆地理编码请求URL
-                    url = f"{AMAP_REVERSE_GEOCODE_URL}?key={AMAP_KEY}&location={longitude},{latitude}&extensions=base"
+                    # 构建请求参数
+                    params = {
+                        'key': AMAP_KEY,
+                        'location': f"{longitude},{latitude}",
+                        'extensions': 'base'
+                    }
+                    
+                    # 对参数进行URL编码和排序
+                    sorted_params = sorted(params.items())
+                    encoded_params = urllib.parse.urlencode(sorted_params)
+                    
+                    # 生成签名
+                    signature = f"{encoded_params}&key={AMAP_SECURITY_KEY}"
+                    signature = signature.encode('utf-8')
+                    signature = hashlib.md5(signature).hexdigest().upper()
+                    
+                    # 构建完整的请求URL
+                    url = f"{AMAP_REVERSE_GEOCODE_URL}?{encoded_params}&sig={signature}"
                     
                     # 添加日志记录请求URL
                     logger.info(f"逆地理编码请求URL: {url}")
