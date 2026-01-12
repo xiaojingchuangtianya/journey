@@ -1,11 +1,8 @@
 import logging
 # 创建日志记录器
 logger = logging.getLogger(__name__)
-# 从settings.py中导入高德地图API配置的导入
-# 导入必要的模块用于生成数字签名
-import hashlib
-import urllib.parse
-from Journey.settings import APP_ID, APP_SECRET, AMAP_KEY, AMAP_SECURITY_KEY, AMAP_REVERSE_GEOCODE_URL
+# 导入必要的模块
+from Journey.settings import APP_ID, APP_SECRET
 from Journal.models import User
 from Journal import models 
 from django.http import HttpResponse, JsonResponse
@@ -304,6 +301,12 @@ def createLocation(request):
             address = request.POST.get('address')
             username = request.POST.get('username')
             region = request.POST.get('region')  # 直接从客户端接收region参数
+            is_free = request.POST.get('is_free')  # 获取是否免费参数
+            
+            # 处理是否免费参数（转换为布尔值）
+            if is_free is not None:
+                is_free = is_free.lower()
+                is_free = True if is_free in ['true', '1', 'yes', 'y'] else False if is_free in ['false', '0', 'no', 'n'] else None
             
             # 获取可选参数
             longitude = request.POST.get('longitude')
@@ -333,7 +336,8 @@ def createLocation(request):
                 longitude=longitude,
                 latitude=latitude,
                 user=user,
-                region=region  # 使用客户端传递的region参数
+                region=region,  # 使用客户端传递的region参数
+                is_free=is_free  # 设置是否免费
             )
             
             # 图片压缩函数（优化版）
@@ -985,11 +989,12 @@ def search_locations(request):
                     'content': location.content[:100] + '...' if len(location.content) > 100 else location.content,
                     'longitude': location.longitude,
                     'latitude': location.latitude,
-                    'created_at': location.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                    'created_at': location.created_at.isoformat(),
                     'main_photo_url': main_photo_url,
                     'likes_count': likes_count,
                     'comments_count': location.comments.count(),
-                    'user_nickname': location.user.nickname
+                    'user_nickname': location.user.nickname,
+                    'is_free': location.is_free  # 添加是否免费字段
                 })
             
             # 计算总页数
@@ -1080,7 +1085,8 @@ def get_nearby_locations(request):
                         'main_photo_url': main_photo_url,
                         'likes_count': likes_count,
                         'comments_count': location.comments.count(),
-                        'created_at': location.created_at.isoformat()
+                        'created_at': location.created_at.isoformat(),
+                        'is_free': location.is_free
                     })
             
             # 按距离从小到大排序
@@ -1206,6 +1212,7 @@ def get_location_detail(request, location_id):
             "likes_count": likes_count,
             "isCollected": user.favorites.filter(location=location).exists() if user and user.is_authenticated else False,
             "isLiked": is_liked,
+            "is_free": location.is_free,  # 添加是否免费字段
             "created_at": location.created_at.isoformat(),
             "comments": comments
         }
@@ -1414,7 +1421,8 @@ def get_user_favorites(request, username):
                     'likes_count': likes_count,
                     'comments_count': location.comments.count(),
                     'favorited_at': favorite.created_at.isoformat(),
-                    'created_at': location.created_at.isoformat()
+                    'created_at': location.created_at.isoformat(),
+                    'is_free': location.is_free  # 添加是否免费字段
                 })
             
             return JsonResponse({
