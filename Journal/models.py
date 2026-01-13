@@ -140,6 +140,25 @@ class Photo(models.Model):
         return f'照片 for {self.location.title} - {self.id}'
 
 
+class CommentPhoto(models.Model):
+    """评论照片模型，用于存储评论的多张照片"""
+    # 关联到评论
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='photos', verbose_name='关联评论')
+    # 照片文件
+    image = models.ImageField(upload_to='comment_photos/', verbose_name='照片')
+    # 上传时间
+    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name='上传时间')
+    
+    class Meta:
+        app_label = 'Journal'
+        verbose_name = '评论照片'
+        verbose_name_plural = '评论照片'
+        ordering = ['uploaded_at']  # 按上传时间排序
+    
+    def __str__(self):
+        return f'评论照片 for {self.comment.content[:20]}... - {self.id}'
+
+
 class Like(models.Model):
     """点赞模型，支持对不同类型对象的点赞"""
     # 点赞用户
@@ -182,6 +201,7 @@ class Favorite(models.Model):
     
     def __str__(self):
         return f'{self.user.nickname} 收藏了 {self.location.title}'
+
 
 
 

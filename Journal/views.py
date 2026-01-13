@@ -530,6 +530,91 @@ def createComment(request):
                 location=location
             )
             
+            # 图片压缩函数（复用createLocation中的实现）
+            def compress_image(image_data, username, quality=70, max_width=1000, use_webp=True):
+                # 打开图片
+                img = Image.open(image_data)
+                
+                # 获取图片原始大小
+                width, height = img.size
+                
+                # 如果图片宽度超过最大宽度，按比例缩放
+                if width > max_width:
+                    ratio = max_width / float(width)
+                    new_height = int(float(height) * float(ratio))
+                    img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+                
+                # 如果是RGBA模式，转换为RGB
+                if img.mode == 'RGBA':
+                    img = img.convert('RGB')
+                
+                # 保存到内存中
+                buffer = BytesIO()
+                
+                # 使用WebP格式（更小的文件大小）
+                file_extension = '.jpg'
+                if use_webp:
+                    try:
+                        img.save(buffer, format='WEBP', quality=quality, optimize=True)
+                        file_extension = '.webp'
+                    except (ValueError, IOError) as e:
+                        # WebP不支持，回退到JPEG格式
+                        buffer.seek(0)
+                        buffer.truncate()
+                        img.save(buffer, format='JPEG', quality=quality, optimize=True, progressive=True)
+                else:
+                    img.save(buffer, format='JPEG', quality=quality, optimize=True, progressive=True)
+                
+                buffer.seek(0)
+                
+                # 创建Django的ContentFile对象
+                compressed_file = ContentFile(buffer.read())
+                
+                # 设置文件名，格式：用户名-时间（精确到秒）.格式
+                current_time = datetime.now().strftime('%Y%m%d%H%M%S')
+                new_name = f"{username}-{current_time}{file_extension}"
+                
+                return compressed_file, new_name
+            
+            # 处理多张评论图片上传（支持Base64编码，最多3张）
+            comment_photos = request.POST.get('comment_photos')  # 假设是JSON数组格式的Base64字符串
+            if comment_photos:
+                try:
+                    photos_list = json.loads(comment_photos)
+                    # 限制最多3张图片
+                    photos_list = photos_list[:3]
+                    
+                    for idx, photo_base64 in enumerate(photos_list):
+                        try:
+                            # 解码Base64图片数据
+                            if photo_base64.startswith('data:image'):
+                                # 移除data:image/jpeg;base64,前缀
+                                photo_base64 = photo_base64.split(',')[1]
+                            image_data = base64.b64decode(photo_base64)
+                            image_file = BytesIO(image_data)
+                            
+                            # 压缩图片，传入用户名
+                            compressed_file, new_name = compress_image(image_file, user.username)
+                            # 为多张图片添加序号后缀，确保唯一性
+                            base_name, ext = os.path.splitext(new_name)
+                            final_name = f"{base_name}-{idx+1}{ext}"
+                            
+                            # 创建CommentPhoto对象
+                            models.CommentPhoto.objects.create(
+                                comment=comment,
+                                image=ContentFile(compressed_file.read(), name=final_name)
+                            )
+                        except Exception as e:
+                            return JsonResponse({
+                                'status': 'error',
+                                'message': f'第{idx+1}张图片处理失败: {str(e)}'
+                            })
+                except json.JSONDecodeError:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': '图片数据格式错误，应为JSON数组格式'
+                    })
+            
             return JsonResponse({
                 'status': 'success',
                 'message': '评论创建成功！！！',
@@ -592,7 +677,8 @@ def showComment(request, location_id):
                     'content': reply.content,
                     'user': reply.user.nickname,
                     'created_at': reply.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                    'likes_count': reply_likes_count
+                    'likes_count': reply_likes_count,
+                    'photos': [request.build_absolute_uri(photo.image.url) for photo in reply.photos.all()]
                 })
             
             # 获取主评论的点赞数
@@ -608,7 +694,8 @@ def showComment(request, location_id):
                 'user': comment.user.nickname,
                 'created_at': comment.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                 'likes_count': likes_count,
-                'replies': replies_data
+                'replies': replies_data,
+                'photos': [request.build_absolute_uri(photo.image.url) for photo in comment.photos.all()]
             })
         
         return JsonResponse({
@@ -1172,7 +1259,8 @@ def get_location_detail(request, location_id):
                     'content': reply.content,
                     'user': reply.user.nickname or reply.user.username,
                     'created_at': reply.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                    'likes_count': reply_likes_count
+                    'likes_count': reply_likes_count,
+                    'photos': [request.build_absolute_uri(photo.image.url) for photo in reply.photos.all()]
                 })
             
             # 获取主评论的点赞数
@@ -1189,7 +1277,8 @@ def get_location_detail(request, location_id):
                 'user': comment.user.nickname or comment.user.username,
                 'created_at': comment.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                 'likes_count': likes_count,
-                'replies': replies
+                'replies': replies,
+                'photos': [request.build_absolute_uri(photo.image.url) for photo in comment.photos.all()]
             })
         
         # 获取地点的点赞数
