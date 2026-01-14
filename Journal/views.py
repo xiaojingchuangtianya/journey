@@ -494,15 +494,26 @@ def changeLocation(request):
 def createComment(request):
     if request.method == 'POST':
         try:
+            # 添加日志记录，调试前端发送的数据问题
+            logger.info(f"createComment请求方法: {request.method}")
+            logger.info(f"请求头信息: {dict(request.headers)}")
+            logger.info(f"POST参数: {dict(request.POST)}")
+            logger.info(f"请求体原始数据: {request.body}")
+            
             # 获取必要参数
             content = request.POST.get('content')
             username = request.POST.get('username')
             location_id = request.POST.get('location_id')
             is_parent = request.POST.get('is_parent', True)
             parent_id = request.POST.get('parent') if not is_parent else None
+            comment_photos = request.POST.get('comment_photos')
+            
+            # 记录获取到的参数
+            logger.info(f"解析到的参数 - content: {content}, username: {username}, location_id: {location_id}, is_parent: {is_parent}, parent_id: {parent_id}, comment_photos: {comment_photos}")
             
             # 验证必要参数
             if not content or not username:
+                logger.warning(f"缺少必要参数 - content: {content}, username: {username}")
                 return JsonResponse({
                     'status': 'error',
                     'message': '内容和用户名不能为空！'
