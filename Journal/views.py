@@ -60,27 +60,36 @@ def JournalMessage(request):
         except (ValueError, TypeError) as e:
             startIndex = 0
             
-        # 获取所有地点，并按点赞数从高到低排序
-        locations_with_likes = []
+        # 获取所有地点，并按评论数和点赞数的加权分数从高到低排序
+        locations_with_score = []
         # 获取Location模型的ContentType
         location_content_type = ContentType.objects.get_for_model(models.Location)
         
         # 获取所有地点
         all_locations = models.Location.objects.all()
         
-        # 为每个地点计算点赞数
+        # 为每个地点计算加权分数（评论数*0.6+点赞数*0.4）
         for location in all_locations:
+            # 计算点赞数
             likes_count = Like.objects.filter(
                 content_type=location_content_type,
                 object_id=location.id
             ).count()
-            locations_with_likes.append((location, likes_count))
+            # 计算评论数
+            comments_count = location.comments.count()
+            # 计算加权分数
+            score = comments_count * 0.6 + likes_count * 0.4
+            locations_with_score.append((location, likes_count, comments_count, score))
         
-        # 按点赞数从高到低排序
-        locations_with_likes.sort(key=lambda x: x[1], reverse=True)
+        # 按加权分数从高到低排序
+        locations_with_score.sort(key=lambda x: x[3], reverse=True)
         
-        # 提取排序后的地点对象并进行分页
-        locations = [loc for loc, _ in locations_with_likes][startIndex:startIndex+10]
+        # 提取排序后的地点对象、点赞数、评论数并进行分页
+        locations_with_pagination = locations_with_score[startIndex:startIndex+10]
+        locations = [loc for loc, _, _, _ in locations_with_pagination]
+        locations_likes = [likes for _, likes, _, _ in locations_with_pagination]
+        locations_comments = [comments for _, _, comments, _ in locations_with_pagination]
+        
         # 从请求中获取username参数，判断用户是否登录
         username = request.GET.get('username')
         user = None
@@ -106,29 +115,32 @@ def JournalMessage(request):
             for location in locations:
                 location.isLiked = False
         
+        # 准备返回数据
+        return_data = []
+        for i, location in enumerate(locations):
+            return_data.append({
+                "id": location.id,
+                'title': location.title,
+                'content': location.content,
+                'created_at': location.created_at.isoformat(),
+                'longitude': location.longitude,#经度
+                'latitude': location.latitude,#纬度
+                'address': location.address,#地点名字
+                'user': location.user.nickname or location.user.username,
+                "images":[request.build_absolute_uri(image.image.url) for image in location.photos.all()],
+                "likes_count": locations_likes[i],
+                "comments_count": locations_comments[i],
+                "isLiked": location.isLiked,
+                "type": determine_type(location.photos.count()),
+            })
+        
         return JsonResponse({
             # 状态
             'status': 'success',
             # csrf_token
             'csrf_token': get_token(request),
             # 数据
-            'data': [
-                {
-                    "id": location.id,
-                    'title': location.title,
-                    'content': location.content,
-                    'created_at': location.created_at.isoformat(),
-                    'longitude': location.longitude,#经度
-                    'latitude': location.latitude,#纬度
-                    'address': location.address,#地点名字
-                    'user': location.user.nickname or location.user.username,
-                    "images":[request.build_absolute_uri(image.image.url) for image in location.photos.all()],
-                    "likes_count": likes_count,
-                    "isLiked": location.isLiked,
-                    "type": determine_type(location.photos.count()),
-                }
-                for location in locations
-            ]
+            'data': return_data
         })
     except Exception as e:
         # 意外情况处理
@@ -1270,8 +1282,7 @@ def get_location_detail(request, location_id):
                     'content': reply.content,
                     'user': reply.user.nickname or reply.user.username,
                     'created_at': reply.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                    'likes_count': reply_likes_count,
-                    'photos': [request.build_absolute_uri(photo.image.url) for photo in reply.photos.all()]
+                    'likes_count': reply_likes_count
                 })
             
             # 获取主评论的点赞数

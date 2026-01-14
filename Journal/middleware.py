@@ -20,7 +20,7 @@ logger.setLevel(logging.INFO)
 NGINX_BLOCKED_IPS_FILE = '/home/nginx/blocked_ips.conf'
 
 # 配置参数
-MAX_FAILED_ATTEMPTS = 3  # 最大失败尝试次数
+MAX_FAILED_ATTEMPTS = 20  # 最大失败尝试次数
 BLOCK_DURATION = 3600    # 记录保留时长（秒），默认1小时
 CACHE_PREFIX = 'ip_access_'
 ALLOWED_HOSTS = ['183.63.111.186']  # 允许的host列表，这些host不会被限制
