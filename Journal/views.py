@@ -517,7 +517,7 @@ def createComment(request):
             username = request.POST.get('username')
             location_id = request.POST.get('location_id')
             is_parent = request.POST.get('is_parent', True)
-            parent_id = request.POST.get('parent') if not is_parent else None
+            parent_id = request.POST.get('parent_id') if not is_parent else None
             comment_photos = request.POST.get('comment_photos')
             
             # # 记录获取到的参数
