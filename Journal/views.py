@@ -1318,7 +1318,7 @@ def get_location_detail(request, location_id):
             "longitude": location.longitude,  # 经度
             "latitude": location.latitude,    # 纬度
             "address": location.address,      # 地点名字
-            "user":  location.user.username,
+            "user":  location.user.nickname or location.user.username,
             "images": [request.build_absolute_uri(image.image.url) for image in location.photos.all()],
             "likes_count": likes_count,
             "isCollected": user.favorites.filter(location=location).exists() if user and user.is_authenticated else False,
