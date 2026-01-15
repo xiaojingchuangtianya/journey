@@ -516,7 +516,9 @@ def createComment(request):
             content = request.POST.get('content')
             username = request.POST.get('username')
             location_id = request.POST.get('location_id')
-            is_parent = request.POST.get('is_parent', True)
+            # 将is_parent转换为布尔值
+            is_parent_str = request.POST.get('is_parent', 'true')
+            is_parent = is_parent_str.lower() != 'false'
             parent_id = request.POST.get('parent_id') if not is_parent else None
             comment_photos = request.POST.get('comment_photos')
             
