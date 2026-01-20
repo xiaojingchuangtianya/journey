@@ -5,6 +5,7 @@ from django.core.cache import cache
 import logging
 import sys
 import subprocess
+from datetime import datetime, timedelta
 
 # 配置基本日志
 logging.basicConfig(
@@ -25,6 +26,9 @@ BLOCK_DURATION = 3600    # 记录保留时长（秒），默认1小时
 CACHE_PREFIX = 'ip_access_'
 ALLOWED_HOSTS = ['183.63.111.186']  # 允许的host列表，这些host不会被限制
 
+# 新增：Nginx重新加载配置的最小间隔时间（秒）
+NGINX_RELOAD_MIN_INTERVAL = 1800  # 最小间隔60秒
+CACHE_RELOAD_TIMESTAMP = 'nginx_reload_timestamp'  # 缓存键：记录上次重新加载时间
 
 
 class IpBlockMiddleware:
@@ -40,6 +44,7 @@ class IpBlockMiddleware:
         logger.info(f"中间件配置：最大失败次数={MAX_FAILED_ATTEMPTS}, 记录时长={BLOCK_DURATION}秒")
         logger.info(f"允许的host列表: {ALLOWED_HOSTS}")
         logger.info(f"Nginx阻止IP文件路径: {NGINX_BLOCKED_IPS_FILE}")
+        logger.info(f"Nginx重新加载最小间隔: {NGINX_RELOAD_MIN_INTERVAL}秒")
         
         # 确保Nginx阻止IP文件目录存在
         os.makedirs(os.path.dirname(NGINX_BLOCKED_IPS_FILE), exist_ok=True)
@@ -110,12 +115,16 @@ class IpBlockMiddleware:
                 logger.warning(f"IP {ip} 失败次数达到阈值 {attempts}/{MAX_FAILED_ATTEMPTS}，将添加到nginx阻止列表")
                 
                 # 将被阻止的IP写入文件，供Nginx直接拒绝访问
-                self._add_ip_to_nginx_blocklist(ip)
+                added = self._add_ip_to_nginx_blocklist(ip)
+                
+                # 如果成功添加IP，检查是否需要重新加载Nginx配置
+                if added:
+                    self._try_reload_nginx()
         except Exception as e:
             logger.error(f"增加失败计数时发生错误: {str(e)}", exc_info=True)
     
     def _add_ip_to_nginx_blocklist(self, ip):
-        """将被阻止的IP添加到Nginx阻止列表文件，并自动执行nginx reload进行热更新"""
+        """将被阻止的IP添加到Nginx阻止列表文件"""
         try:
             logger.info(f"正在将IP {ip} 添加到Nginx阻止列表文件")
             
@@ -133,6 +142,11 @@ class IpBlockMiddleware:
                 except Exception as e:
                     logger.error(f"读取Nginx阻止列表文件时发生错误: {str(e)}")
             
+            # 检查IP是否已经在列表中
+            if ip in blocked_ips:
+                logger.info(f"IP {ip} 已经在Nginx阻止列表中，无需重复添加")
+                return False
+            
             # 添加新的阻止IP
             blocked_ips.add(ip)
             
@@ -140,18 +154,39 @@ class IpBlockMiddleware:
             with open(NGINX_BLOCKED_IPS_FILE, 'w', encoding='utf-8') as f:
                 f.write('# 被阻止的IP地址列表 - 由Django中间件自动生成\n')
                 f.write(f'# 最后更新时间: {time.strftime("%Y-%m-%d %H:%M:%S")}\n')
+                f.write(f'# 总共阻止的IP数量: {len(blocked_ips)}\n')
                 f.write('\n')
                 for blocked_ip in sorted(blocked_ips):
                     f.write(f'deny {blocked_ip};\n')
             
             logger.info(f"IP {ip} 已添加到Nginx阻止列表文件，当前阻止的IP总数: {len(blocked_ips)}")
-            
-            # 尝试自动执行nginx reload进行热更新
-            try:
-                # 在Linux/Unix上执行nginx reload
-                subprocess.run(['/home/nginx/sbin/nginx', '-s', 'reload'], check=True)
-                logger.info(f"Linux/Unix系统：已成功执行nginx reload，更新了阻止IP列表")
-            except Exception as e:
-                logger.warning(f"执行nginx reload时发生错误: {str(e)}，请手动执行 '/home/nginx/sbin/nginx -s reload'")
+            return True
         except Exception as e:
             logger.error(f"将IP添加到Nginx阻止列表文件时发生错误: {str(e)}", exc_info=True)
+            return False
+    
+    def _try_reload_nginx(self):
+        """尝试重新加载Nginx配置，但会检查距离上次重新加载的时间间隔"""
+        try:
+            # 获取上次重新加载的时间
+            last_reload_time = cache.get(CACHE_RELOAD_TIMESTAMP, 0)
+            current_time = time.time()
+            
+            # 检查是否超过最小间隔时间
+            if current_time - last_reload_time < NGINX_RELOAD_MIN_INTERVAL:
+                time_remaining = int(NGINX_RELOAD_MIN_INTERVAL - (current_time - last_reload_time))
+                logger.info(f"距离上次Nginx重新加载不足 {NGINX_RELOAD_MIN_INTERVAL}秒，跳过本次重新加载。剩余时间: {time_remaining}秒")
+                return
+            
+            # 执行nginx reload
+            logger.info("正在执行Nginx配置重新加载...")
+            subprocess.run(['/home/nginx/sbin/nginx', '-s', 'reload'], check=True)
+            
+            # 更新上次重新加载时间
+            cache.set(CACHE_RELOAD_TIMESTAMP, current_time, None)  # 永久缓存
+            logger.info(f"Nginx配置重新加载成功！下次重新加载最早在 {NGINX_RELOAD_MIN_INTERVAL}秒后")
+            
+        except subprocess.CalledProcessError as e:
+            logger.error(f"执行nginx reload命令失败: {str(e)}")
+        except Exception as e:
+            logger.error(f"尝试重新加载Nginx配置时发生错误: {str(e)}", exc_info=True)
