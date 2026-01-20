@@ -10,8 +10,9 @@ from datetime import datetime, timedelta
 # 配置基本日志
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    stream=sys.stdout
+    format='%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout,
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
 
 logger = logging.getLogger('ip_block_middleware')
@@ -27,7 +28,7 @@ CACHE_PREFIX = 'ip_access_'
 ALLOWED_HOSTS = ['183.63.111.186']  # 允许的host列表，这些host不会被限制
 
 # 新增：Nginx重新加载配置的最小间隔时间（秒）
-NGINX_RELOAD_MIN_INTERVAL = 1800  # 最小间隔60秒
+NGINX_RELOAD_MIN_INTERVAL = 1800  # 最小间隔30分钟
 CACHE_RELOAD_TIMESTAMP = 'nginx_reload_timestamp'  # 缓存键：记录上次重新加载时间
 
 
@@ -53,21 +54,30 @@ class IpBlockMiddleware:
         # 检查请求的host是否在允许列表中
         # 获取客户端IP地址
         client_ip = self._get_client_ip(request)
+        
+        # 记录请求开始时间
+        start_time = time.time()
+        request_id = f"req_{int(start_time * 1000)}_{client_ip.replace('.', '_')}"
+        
         if client_ip in ALLOWED_HOSTS:
-            logger.info(f"IP {client_ip} 在允许列表中，跳过IP限制检查")
-            return self.get_response(request)
+            logger.info(f"[{request_id}] IP {client_ip} 在允许列表中，跳过IP限制检查")
+            response = self.get_response(request)
+            # 记录请求处理时间
+            process_time = time.time() - start_time
+            logger.info(f"[{request_id}] 请求处理完成，耗时: {process_time:.3f}秒，状态码: {response.status_code}")
+            return response
           
         # 处理请求前进行记录和检查，但不再拦截
         try:
             # 记录访问
-            logger.info(f"记录来自IP {client_ip} 的请求，URL: {request.path}")
+            logger.info(f"[{request_id}] 记录来自IP {client_ip} 的请求，URL: {request.path}")
             
             # 获取当前失败次数
             cache_key = f'{CACHE_PREFIX}failed_{client_ip}'
             current_attempts = cache.get(cache_key, 0)
-            logger.info(f"IP {client_ip} 当前失败次数: {current_attempts}/{MAX_FAILED_ATTEMPTS}")
+            logger.info(f"[{request_id}] IP {client_ip} 当前失败次数: {current_attempts}/{MAX_FAILED_ATTEMPTS}")
         except Exception as e:
-            logger.error(f"记录IP访问时发生错误: {str(e)}", exc_info=True)
+            logger.error(f"[{request_id}] 记录IP访问时发生错误: {str(e)}", exc_info=True)
         
         try:
             # 处理请求 - 不再直接拦截，全部交给nginx处理
@@ -75,12 +85,22 @@ class IpBlockMiddleware:
             
             # 检查响应状态码，如果是404（URL未命中），增加失败计数
             if response.status_code == 404:
-                logger.warning(f"IP {client_ip} 访问了不存在的URL: {request.path}，将增加失败计数")
+                logger.warning(f"[{request_id}] IP {client_ip} 访问了不存在的URL: {request.path}，将增加失败计数")
+                # 记录增加失败计数的开始时间
+                increment_start = time.time()
                 self._increment_failed_attempt(client_ip)
+                increment_time = time.time() - increment_start
+                logger.info(f"[{request_id}] 增加失败计数完成，耗时: {increment_time:.3f}秒")
             
+            # 记录请求处理时间
+            process_time = time.time() - start_time
+            logger.info(f"[{request_id}] 请求处理完成，耗时: {process_time:.3f}秒，状态码: {response.status_code}")
             return response
         except Exception as e:
-            logger.error(f"处理请求时发生错误: {str(e)}", exc_info=True)
+            logger.error(f"[{request_id}] 处理请求时发生错误: {str(e)}", exc_info=True)
+            # 记录异常情况下的请求处理时间
+            process_time = time.time() - start_time
+            logger.info(f"[{request_id}] 请求处理异常完成，耗时: {process_time:.3f}秒")
             return self.get_response(request)
     
     def _get_client_ip(self, request):
@@ -102,6 +122,9 @@ class IpBlockMiddleware:
     def _increment_failed_attempt(self, ip):
         """增加失败尝试次数，并在超过阈值时记录到nginx阻止列表"""
         try:
+            # 记录方法开始时间
+            start_time = time.time()
+            
             # 获取当前失败次数
             cache_key = f'{CACHE_PREFIX}failed_{ip}'
             attempts = cache.get(cache_key, 0)
@@ -109,10 +132,11 @@ class IpBlockMiddleware:
             # 增加计数
             attempts += 1
             cache.set(cache_key, attempts, BLOCK_DURATION)
+            logger.info(f"[block_process_{ip}] 失败计数增加: {ip}，当前次数: {attempts}/{MAX_FAILED_ATTEMPTS}")
             
             # 检查是否超过阈值
             if attempts >= MAX_FAILED_ATTEMPTS:
-                logger.warning(f"IP {ip} 失败次数达到阈值 {attempts}/{MAX_FAILED_ATTEMPTS}，将添加到nginx阻止列表")
+                logger.warning(f"[block_process_{ip}] 失败次数达到阈值 {attempts}/{MAX_FAILED_ATTEMPTS}，将添加到nginx阻止列表")
                 
                 # 将被阻止的IP写入文件，供Nginx直接拒绝访问
                 added = self._add_ip_to_nginx_blocklist(ip)
@@ -120,13 +144,20 @@ class IpBlockMiddleware:
                 # 如果成功添加IP，检查是否需要重新加载Nginx配置
                 if added:
                     self._try_reload_nginx()
+            
+            # 记录方法执行时间
+            process_time = time.time() - start_time
+            logger.info(f"[block_process_{ip}] 失败计数处理完成，耗时: {process_time:.3f}秒")
+            
         except Exception as e:
-            logger.error(f"增加失败计数时发生错误: {str(e)}", exc_info=True)
-    
+            logger.error(f"[block_process_{ip}] 增加失败计数时发生错误: {str(e)}", exc_info=True)
+
     def _add_ip_to_nginx_blocklist(self, ip):
         """将被阻止的IP添加到Nginx阻止列表文件"""
         try:
-            logger.info(f"正在将IP {ip} 添加到Nginx阻止列表文件")
+            # 记录方法开始时间
+            start_time = time.time()
+            logger.info(f"[block_ip_{ip}] 正在将IP {ip} 添加到Nginx阻止列表文件")
             
             # 读取现有阻止的IP列表
             blocked_ips = set()
@@ -139,16 +170,18 @@ class IpBlockMiddleware:
                                 # 提取IP地址
                                 ip_in_file = line.split()[1].strip(';')
                                 blocked_ips.add(ip_in_file)
+                    logger.info(f"[block_ip_{ip}] 读取现有阻止列表完成，当前数量: {len(blocked_ips)}")
                 except Exception as e:
-                    logger.error(f"读取Nginx阻止列表文件时发生错误: {str(e)}")
+                    logger.error(f"[block_ip_{ip}] 读取Nginx阻止列表文件时发生错误: {str(e)}")
             
             # 检查IP是否已经在列表中
             if ip in blocked_ips:
-                logger.info(f"IP {ip} 已经在Nginx阻止列表中，无需重复添加")
+                logger.info(f"[block_ip_{ip}] IP {ip} 已经在Nginx阻止列表中，无需重复添加")
                 return False
             
             # 添加新的阻止IP
             blocked_ips.add(ip)
+            logger.info(f"[block_ip_{ip}] IP {ip} 已添加到阻止列表集合")
             
             # 写入文件
             with open(NGINX_BLOCKED_IPS_FILE, 'w', encoding='utf-8') as f:
@@ -159,15 +192,20 @@ class IpBlockMiddleware:
                 for blocked_ip in sorted(blocked_ips):
                     f.write(f'deny {blocked_ip};\n')
             
-            logger.info(f"IP {ip} 已添加到Nginx阻止列表文件，当前阻止的IP总数: {len(blocked_ips)}")
+            # 记录方法执行时间
+            process_time = time.time() - start_time
+            logger.info(f"[block_ip_{ip}] IP {ip} 已成功添加到Nginx阻止列表文件，当前总数: {len(blocked_ips)}，耗时: {process_time:.3f}秒")
             return True
         except Exception as e:
-            logger.error(f"将IP添加到Nginx阻止列表文件时发生错误: {str(e)}", exc_info=True)
+            logger.error(f"[block_ip_{ip}] 将IP添加到Nginx阻止列表文件时发生错误: {str(e)}", exc_info=True)
             return False
-    
+
     def _try_reload_nginx(self):
         """尝试重新加载Nginx配置，但会检查距离上次重新加载的时间间隔"""
         try:
+            # 记录方法开始时间
+            start_time = time.time()
+            
             # 获取上次重新加载的时间
             last_reload_time = cache.get(CACHE_RELOAD_TIMESTAMP, 0)
             current_time = time.time()
@@ -175,18 +213,21 @@ class IpBlockMiddleware:
             # 检查是否超过最小间隔时间
             if current_time - last_reload_time < NGINX_RELOAD_MIN_INTERVAL:
                 time_remaining = int(NGINX_RELOAD_MIN_INTERVAL - (current_time - last_reload_time))
-                logger.info(f"距离上次Nginx重新加载不足 {NGINX_RELOAD_MIN_INTERVAL}秒，跳过本次重新加载。剩余时间: {time_remaining}秒")
+                logger.info(f"[nginx_reload] 距离上次Nginx重新加载不足 {NGINX_RELOAD_MIN_INTERVAL}秒，跳过本次重新加载。剩余时间: {time_remaining}秒")
                 return
             
             # 执行nginx reload
-            logger.info("正在执行Nginx配置重新加载...")
+            logger.info(f"[nginx_reload] 正在执行Nginx配置重新加载...")
             subprocess.run(['/home/nginx/sbin/nginx', '-s', 'reload'], check=True)
             
             # 更新上次重新加载时间
             cache.set(CACHE_RELOAD_TIMESTAMP, current_time, None)  # 永久缓存
-            logger.info(f"Nginx配置重新加载成功！下次重新加载最早在 {NGINX_RELOAD_MIN_INTERVAL}秒后")
+            
+            # 记录方法执行时间
+            process_time = time.time() - start_time
+            logger.info(f"[nginx_reload] Nginx配置重新加载成功！下次重新加载最早在 {NGINX_RELOAD_MIN_INTERVAL}秒后，耗时: {process_time:.3f}秒")
             
         except subprocess.CalledProcessError as e:
-            logger.error(f"执行nginx reload命令失败: {str(e)}")
+            logger.error(f"[nginx_reload] 执行nginx reload命令失败: {str(e)}")
         except Exception as e:
-            logger.error(f"尝试重新加载Nginx配置时发生错误: {str(e)}", exc_info=True)
+            logger.error(f"[nginx_reload] 尝试重新加载Nginx配置时发生错误: {str(e)}", exc_info=True)

@@ -1,5 +1,0 @@
-INFO 2026-01-20 16:49:36,221 autoreload 47864 48140 Watching for file changes with StatReloader
-INFO 2026-01-20 16:49:37,721 middleware 47864 120152 IP访问记录中间件已初始化
-INFO 2026-01-20 16:49:37,722 middleware 47864 120152 中间件配置：最大失败次数=20, 记录时长=3600秒
-INFO 2026-01-20 16:49:37,722 middleware 47864 120152 允许的host列表: ['183.63.111.186']
-INFO 2026-01-20 16:49:37,722 middleware 47864 120152 Nginx阻止IP文件路径: /home/nginx/blocked_ips.conf
