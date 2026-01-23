@@ -1280,7 +1280,6 @@ def get_location_detail(request, location_id):
                 # 获取评论的回复
                 replies = []
                 for reply in comment.replies.all().order_by('created_at'):
-                    # 获取回复的点赞数
                     reply_content_type = ContentType.objects.get_for_model(reply)
                     reply_likes_count = Like.objects.filter(
                         content_type=reply_content_type,
@@ -1291,21 +1290,19 @@ def get_location_detail(request, location_id):
                         'id': reply.id,
                         'content': reply.content,
                         'user': reply.user.nickname or reply.user.username,
+                        "nickname": reply.user.nickname,
                         'created_at': reply.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                         'likes_count': reply_likes_count
                     })
                 
-                # 获取主评论的点赞数
                 comment_content_type = ContentType.objects.get_for_model(comment)
                 likes_count = Like.objects.filter(
                     content_type=comment_content_type,
                     object_id=comment.id
                 ).count()
-                # 添加打印语句
                 print(f"评论ID: {comment.id}, 用户: {comment.user.username or comment.user.nickname}, 点赞数: {likes_count}")
                 print(f"回复数量: {len(replies)}")
                 print(f"评论图片数量: {comment.photos.count()}")
-                # 默认头像
                 comment_data = {
                     "avatar": request.build_absolute_uri(comment.user.avatar.url) if comment.user.avatar else None,
                     'id': comment.id,
