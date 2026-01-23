@@ -1266,44 +1266,45 @@ def get_location_detail(request, location_id):
         
         # 获取地点关联的评论
         comments = []
-        # 查询该地点的所有父级评论，按创建时间降序排列
-        parent_comments = Comment.objects.filter(location=location, is_parent=True).order_by('-created_at')
-        for comment in parent_comments:
-            # 获取评论的回复
-            replies = []
-            for reply in comment.replies.all().order_by('created_at'):
-                # 获取回复的点赞数
-                reply_content_type = ContentType.objects.get_for_model(reply)
-                reply_likes_count = Like.objects.filter(
-                    content_type=reply_content_type,
-                    object_id=reply.id
-                ).count()
+        if user:  # 只在用户登录时返回评论
+            # 查询该地点的当前用户的父级评论，按创建时间降序排列
+            parent_comments = Comment.objects.filter(location=location, is_parent=True, user=user).order_by('-created_at')
+            for comment in parent_comments:
+                # 获取评论的回复
+                replies = []
+                for reply in comment.replies.all().order_by('created_at'):
+                    # 获取回复的点赞数
+                    reply_content_type = ContentType.objects.get_for_model(reply)
+                    reply_likes_count = Like.objects.filter(
+                        content_type=reply_content_type,
+                        object_id=reply.id
+                    ).count()
+                    
+                    replies.append({
+                        'id': reply.id,
+                        'content': reply.content,
+                        'user': reply.user.nickname or reply.user.username,
+                        'created_at': reply.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                        'likes_count': reply_likes_count
+                    })
                 
-                replies.append({
-                    'id': reply.id,
-                    'content': reply.content,
-                    'user': reply.user.nickname or reply.user.username,
-                    'created_at': reply.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                    'likes_count': reply_likes_count
+                # 获取主评论的点赞数
+                comment_content_type = ContentType.objects.get_for_model(comment)
+                likes_count = Like.objects.filter(
+                    content_type=comment_content_type,
+                    object_id=comment.id
+                ).count()
+                # 默认头像
+                comments.append({
+                    "avatar": request.build_absolute_uri(comment.user.avatar.url) if comment.user.avatar else None,
+                    'id': comment.id,
+                    'content': comment.content,
+                    'user': comment.user.nickname or comment.user.username,
+                    'created_at': comment.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                    'likes_count': likes_count,
+                    'replies': replies,
+                    'photos': [request.build_absolute_uri(photo.image.url) for photo in comment.photos.all()]
                 })
-            
-            # 获取主评论的点赞数
-            comment_content_type = ContentType.objects.get_for_model(comment)
-            likes_count = Like.objects.filter(
-                content_type=comment_content_type,
-                object_id=comment.id
-            ).count()
-            # 默认头像
-            comments.append({
-                "avatar": request.build_absolute_uri(comment.user.avatar.url) if comment.user.avatar else None,
-                'id': comment.id,
-                'content': comment.content,
-                'user': comment.user.nickname or comment.user.username,
-                'created_at': comment.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                'likes_count': likes_count,
-                'replies': replies,
-                'photos': [request.build_absolute_uri(photo.image.url) for photo in comment.photos.all()]
-            })
         
         # 获取地点的点赞数
         location_content_type = ContentType.objects.get_for_model(location)
