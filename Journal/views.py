@@ -1299,7 +1299,7 @@ def get_location_detail(request, location_id):
                     "avatar": request.build_absolute_uri(comment.user.avatar.url) if comment.user.avatar else None,
                     'id': comment.id,
                     'content': comment.content,
-                    'user': comment.user.nickname or comment.user.username,
+                    'user':  comment.user.username or comment.user.nickname,
                     'created_at': comment.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                     'likes_count': likes_count,
                     'replies': replies,
