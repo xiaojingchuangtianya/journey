@@ -712,6 +712,10 @@ def showComment(request, location_id):
                 content_type=comment_content_type,
                 object_id=comment.id
             ).count()
+            # 添加打印语句
+            print(f"评论ID: {comment.id}, 用户: {comment.user.username or comment.user.nickname}, 点赞数: {likes_count}")
+            print(f"回复数量: {len(replies_data)}")
+            print(f"评论图片数量: {comment.photos.count()}")
             
             comments_data.append({
                 'id': comment.id,
@@ -722,6 +726,9 @@ def showComment(request, location_id):
                 'replies': replies_data,
                 'photos': [request.build_absolute_uri(photo.image.url) for photo in comment.photos.all()]
             })
+        
+        # 打印最终的评论列表
+        print(f"最终评论列表长度: {len(comments_data)}")
         
         return JsonResponse({
             'status': 'success',
@@ -1294,18 +1301,28 @@ def get_location_detail(request, location_id):
                     content_type=comment_content_type,
                     object_id=comment.id
                 ).count()
+                # 添加打印语句
+                print(f"评论ID: {comment.id}, 用户: {comment.user.username or comment.user.nickname}, 点赞数: {likes_count}")
+                print(f"回复数量: {len(replies)}")
+                print(f"评论图片数量: {comment.photos.count()}")
                 # 默认头像
-                comments.append({
+                comment_data = {
                     "avatar": request.build_absolute_uri(comment.user.avatar.url) if comment.user.avatar else None,
                     'id': comment.id,
                     'content': comment.content,
                     'user':  comment.user.username or comment.user.nickname,
+                    "nickname": comment.user.nickname,
                     'created_at': comment.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                     'likes_count': likes_count,
                     'replies': replies,
                     'photos': [request.build_absolute_uri(photo.image.url) for photo in comment.photos.all()]
-                })
+                }
+                # 打印构建的评论数据
+                print(f"构建的评论数据: {comment_data}")
+                comments.append(comment_data)
         
+        # 打印最终的评论列表
+        print(f"最终评论列表长度: {len(comments)}")
         # 获取地点的点赞数
         location_content_type = ContentType.objects.get_for_model(location)
         likes_count = Like.objects.filter(
