@@ -30,6 +30,8 @@ from Journey.settings import APP_ID, APP_SECRET
 # 添加PIL库导入用于图片压缩
 from PIL import Image
 from io import BytesIO
+# 导入屏蔽词过滤模块
+from .filter_words import filter_content
 
 def determine_type(image_count):
     """根据图片数量确定type返回值"""
@@ -337,6 +339,11 @@ def createLocation(request):
                     'message': '标题、内容、地址和用户名不能为空！'
                 })
             
+            # 屏蔽词过滤
+            title = filter_content(title)
+            content = filter_content(content)
+            address = filter_content(address)
+            
             # 获取用户对象
             user = User.objects.get(username=username)
             
@@ -532,6 +539,9 @@ def createComment(request):
                     'status': 'error',
                     'message': '内容和用户名不能为空！'
                 })
+            
+            # 屏蔽词过滤
+            content = filter_content(content)
             
             # 获取用户对象
             user = User.objects.get(username=username)
