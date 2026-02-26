@@ -1,0 +1,6 @@
+INFO 2026-02-26 11:39:32,277 autoreload 59860 122720 Watching for file changes with StatReloader
+INFO 2026-02-26 11:39:32,387 middleware 59860 84316 IP访问记录中间件已初始化
+INFO 2026-02-26 11:39:32,387 middleware 59860 84316 中间件配置：最大失败次数=20, 记录时长=3600秒
+INFO 2026-02-26 11:39:32,387 middleware 59860 84316 允许的host列表: ['183.63.111.186']
+INFO 2026-02-26 11:39:32,387 middleware 59860 84316 Nginx阻止IP文件路径: /home/nginx/blocked_ips.conf
+INFO 2026-02-26 11:39:32,388 middleware 59860 84316 Nginx重新加载最小间隔: 1800秒
