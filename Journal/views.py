@@ -163,7 +163,6 @@ def createUser(request):
             encryptedData = request.POST.get('encryptedData')
             iv = request.POST.get('iv')
             ip_location = request.POST.get('ip_location', '')
-            
             # 验证必需参数
             if not all([code, encryptedData, iv]):
                 return JsonResponse({
@@ -302,7 +301,53 @@ def createUser(request):
     else:
         return HttpResponse("Invalid request method")
 
-
+def updateUser(request):
+    """更新用户信息视图函数"""
+    if request.method == 'GET':
+        try:
+            # 获取username参数
+            username = request.GET.get('username')
+            
+            if not username:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '用户名不能为空'
+                })
+            
+            # 查询用户
+            user = User.objects.get(username=username)
+            
+            # 返回isGetAvatar和isGetUserName字段
+            return JsonResponse({
+                'status': 'success',
+                'isGetAvatar': user.isGetAvatar,
+                'isGetNickname': user.isGetNickname
+            })
+            
+        except User.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': '用户不存在！'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'获取用户信息失败: {str(e)}'
+            })
+    elif request.method == 'POST':
+        try:
+            # 获取必要参数
+            username = request.POST.get('username')
+            nickname = request.POST.get('nickname')
+            gender = request.POST.get('gender')
+            ip_location = request.POST.get('ip_location')
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'更新用户信息失败: {str(e)}'
+            })
+    else:
+        return HttpResponse("Invalid request method")
 
 # 创建地点
 def createLocation(request):

@@ -29,15 +29,19 @@ class User(AbstractBaseUser):
         ('F', '女'),
         ('O', '其他'),
     )
+    isGetAvatar = models.BooleanField(default=False, verbose_name='是否获取上传头像',null=True, blank=True)
+    isGetNickname = models.BooleanField(default=False, verbose_name='是否获取用户名',null=True, blank=True)
     # 基本信息
+    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, verbose_name='头像')
     username = models.CharField(max_length=100, unique=True, verbose_name='用户名')
+
     nickname = models.CharField(max_length=100, verbose_name='名称')
     # 用户性别
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES, null=True, blank=True, verbose_name='性别')
     # IP归属信息
     ip_location = models.CharField(max_length=200, null=True, blank=True, verbose_name='IP归属')
     # 头像
-    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, verbose_name='头像')
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     # 设置用户管理器
     objects = UserManager()

@@ -10,12 +10,8 @@ urlpatterns = [
     path('toggle-favorite/', views.toggle_favorite, name='切换收藏状态'),
     path('toggle_location_like/', views.toggle_location_like, name='切换地点点赞状态'),
     path('createLocation/', views.createLocation, name='创建地点'),
-
-    
-
-    
+    path('updateUser/', views.updateUser, name='更新用户信息'),
     path('changeLocation/', views.changeLocation, name='修改调整'),
-
     path('showComment/<int:location_id>/', views.showComment, name='展示评论'),
     path('likeComment/', views.likeComment, name='点赞评论'),
     path('api/nearby-locations/', views.get_nearby_locations, name='获取附近地点'),
