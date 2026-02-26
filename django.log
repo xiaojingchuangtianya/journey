@@ -18,3 +18,10 @@ INFO 2026-02-26 14:33:07,140 middleware 14808 26228 中间件配置：最大失�
 INFO 2026-02-26 14:33:07,140 middleware 14808 26228 允许的host列表: ['183.63.111.186']
 INFO 2026-02-26 14:33:07,140 middleware 14808 26228 Nginx阻止IP文件路径: /home/nginx/blocked_ips.conf
 INFO 2026-02-26 14:33:07,140 middleware 14808 26228 Nginx重新加载最小间隔: 1800秒
+INFO 2026-02-26 14:36:56,701 autoreload 14808 46456 F:\微信开发\露营\Journey\Journal\admin.py changed, reloading.
+INFO 2026-02-26 14:36:57,270 autoreload 95260 50968 Watching for file changes with StatReloader
+INFO 2026-02-26 14:36:57,370 middleware 95260 1408 IP访问记录中间件已初始化
+INFO 2026-02-26 14:36:57,371 middleware 95260 1408 中间件配置：最大失败次数=20, 记录时长=3600秒
+INFO 2026-02-26 14:36:57,371 middleware 95260 1408 允许的host列表: ['183.63.111.186']
+INFO 2026-02-26 14:36:57,371 middleware 95260 1408 Nginx阻止IP文件路径: /home/nginx/blocked_ips.conf
+INFO 2026-02-26 14:36:57,371 middleware 95260 1408 Nginx重新加载最小间隔: 1800秒
