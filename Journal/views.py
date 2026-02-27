@@ -213,6 +213,7 @@ def createUser(request):
 
             # 3. 处理用户头像
             avatar_file = None
+            # 只有当用户还没有获取过头像时才处理
             if user_info.get('avatarUrl'):
                 try:
                     avatar_url = user_info['avatarUrl']
@@ -234,7 +235,9 @@ def createUser(request):
             try:
                 user = models.User.objects.get(username=openid)
                 # 更新现有用户信息
-                user.nickname = user_info.get('nickName', openid)
+                # 只有当用户还没有获取过昵称时才更新
+                if not user.isGetNickname:
+                    user.nickname = user_info.get('nickName', openid)
                 user.gender = user_info.get('gender') if user_info.get('gender') else None
                 
                 # 使用微信用户信息中的province和city构建ip_location
@@ -250,7 +253,13 @@ def createUser(request):
                     user.ip_location = city
                 else:
                     user.ip_location = ''
+                
+                # 只有当用户还没有获取过头像时才设置
+                if avatar_file and not user.isGetAvatar:
+                    user.avatar = avatar_file
+                    user.isGetAvatar = True
             except models.User.DoesNotExist:
+                # 创建新用户时总是设置头像和昵称
                 # 使用微信用户信息中的province和city构建ip_location
                 province = user_info.get('province', '')
                 city = user_info.get('city', '')
@@ -264,17 +273,17 @@ def createUser(request):
                 elif city:
                     ip_location_value = city
                 
-                # 创建新用户
+                # 创建新用户,新用户使用的默认头像,所以isGetAvatar,isGetNickname两个字段记为false
                 user = models.User.objects.create_user(
                     username=openid,  # 使用openid作为username
                     nickname=user_info.get('nickName', openid),
                     gender=user_info.get('gender') if user_info.get('gender') else None,
-                    ip_location=ip_location_value
+                    ip_location=ip_location_value,
                 )
-            # 5. 设置头像
-            if avatar_file:
-                user.avatar = avatar_file
-                user.save()
+                # 5. 设置头像
+                if avatar_file:
+                    user.avatar = avatar_file
+                    user.save()
             
             # 6. 构建返回数据
             avatar_url = request.build_absolute_uri(user.avatar.url) if user.avatar else ''
