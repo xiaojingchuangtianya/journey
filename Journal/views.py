@@ -339,8 +339,58 @@ def updateUser(request):
             # 获取必要参数
             username = request.POST.get('username')
             nickname = request.POST.get('nickname')
-            gender = request.POST.get('gender')
-            ip_location = request.POST.get('ip_location')
+            avatar_url = request.POST.get('avatar_url')
+
+            
+            if not username:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '用户名不能为空'
+                })
+            
+            # 查询用户
+            user = User.objects.get(username=username)
+            
+            # 更新用户信息
+            if nickname:
+                user.nickname = nickname
+                user.isGetNickname = True
+            
+            # 处理头像URL
+            if avatar_url:
+                try:
+                    # 下载头像图片
+                    import urllib.request
+                    from django.core.files.base import ContentFile
+                    from datetime import datetime
+                    
+                    req = urllib.request.Request(avatar_url, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req, timeout=10) as response:
+                        if response.status == 200:
+                            # 生成文件名，使用username和时间戳
+                            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                            filename = f"avatar_{username}_{timestamp}.png"
+                            # 保存到Django文件系统
+                            avatar_file = ContentFile(response.read(), name=filename)
+                            user.avatar = avatar_file
+                            user.isGetAvatar = True
+                except Exception as e:
+                    print(f"下载头像失败: {str(e)}")
+                    # 如果下载失败，不阻止用户更新，只是不设置头像
+            
+            # 保存更新
+            user.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': '用户信息更新成功！'
+            })
+            
+        except User.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': '用户不存在！'
+            })
         except Exception as e:
             return JsonResponse({
                 'status': 'error',
