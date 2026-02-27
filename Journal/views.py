@@ -335,6 +335,8 @@ def updateUser(request):
                 'message': f'获取用户信息失败: {str(e)}'
             })
     elif request.method == 'POST':
+        print(request.POST)
+        print(request.BODY)
         try:
             # 获取必要参数
             username = request.POST.get('username')
