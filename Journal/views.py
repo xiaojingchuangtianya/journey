@@ -367,8 +367,8 @@ def updateUser(request):
                     from django.core.files.base import ContentFile
                     from datetime import datetime
                     
-                    req = urllib.request.Request(avatar_url[0], headers={'User-Agent': 'Mozilla/5.0'})
-                    print(avatar_url[0])
+                    req = urllib.request.Request(avatar_url, headers={'User-Agent': 'Mozilla/5.0'})
+                    print(avatar_url)
                     with urllib.request.urlopen(req, timeout=10) as response:
                         if response.status == 200:
                             # 生成文件名，使用username和时间戳
