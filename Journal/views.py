@@ -367,12 +367,13 @@ def updateUser(request):
                     from django.core.files.base import ContentFile
                     from datetime import datetime
                     
-                    req = urllib.request.Request(avatar_url, headers={'User-Agent': 'Mozilla/5.0'})
+                    req = urllib.request.Request(avatar_url[0], headers={'User-Agent': 'Mozilla/5.0'})
+                    print(avatar_url[0])
                     with urllib.request.urlopen(req, timeout=10) as response:
                         if response.status == 200:
                             # 生成文件名，使用username和时间戳
                             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                            filename = f"avatar_{username}_{timestamp}.png"
+                            filename = f"avatar_{nickname}_{timestamp}.png"
                             # 保存到Django文件系统
                             avatar_file = ContentFile(response.read(), name=filename)
                             user.avatar = avatar_file
