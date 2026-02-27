@@ -338,6 +338,7 @@ def updateUser(request):
             })
     elif request.method == 'POST':
         print(request.POST)
+        print(request.FILES)
         try:
             # 获取必要参数
             username = request.POST.get('username')
