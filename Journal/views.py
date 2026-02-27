@@ -362,24 +362,66 @@ def updateUser(request):
             # 处理头像URL
             if avatar_url:
                 try:
-                    # 下载头像图片
                     import urllib.request
+                    import urllib.error
+                    import socket
                     from django.core.files.base import ContentFile
                     from datetime import datetime
                     
-                    req = urllib.request.Request(avatar_url, headers={'User-Agent': 'Mozilla/5.0'})
-                    print(avatar_url)
-                    with urllib.request.urlopen(req, timeout=10) as response:
-                        if response.status == 200:
-                            # 生成文件名，使用username和时间戳
-                            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                            filename = f"avatar_{nickname}_{timestamp}.png"
-                            # 保存到Django文件系统
-                            avatar_file = ContentFile(response.read(), name=filename)
-                            user.avatar = avatar_file
-                            user.isGetAvatar = True
+                    # 验证URL格式
+                    if not avatar_url.startswith(('http://', 'https://')):
+                        print(f"无效的头像URL: {avatar_url}")
+                    else:
+                        # 设置重试机制
+                        max_retries = 3
+                        retry_delay = 2
+                        
+                        for attempt in range(max_retries):
+                            try:
+                                req = urllib.request.Request(
+                                    avatar_url,
+                                    headers={
+                                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                                    }
+                                )
+                                print(f"尝试下载头像 (第{attempt + 1}次): {avatar_url}")
+                                
+                                # 设置socket超时
+                                socket.setdefaulttimeout(10)
+                                
+                                with urllib.request.urlopen(req, timeout=10) as response:
+                                    if response.status == 200:
+                                        # 生成文件名，使用username和时间戳
+                                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                                        safe_nickname = ''.join(c for c in (nickname or username) if c.isalnum() or c in '_-')
+                                        filename = f"avatar_{safe_nickname}_{timestamp}.png"
+                                        # 保存到Django文件系统
+                                        avatar_file = ContentFile(response.read(), name=filename)
+                                        user.avatar = avatar_file
+                                        user.isGetAvatar = True
+                                        print(f"头像下载成功: {filename}")
+                                        break
+                                    else:
+                                        print(f"下载失败，状态码: {response.status}")
+                                        
+                            except urllib.error.URLError as e:
+                                print(f"下载头像失败 (尝试 {attempt + 1}/{max_retries}): {str(e)}")
+                                if attempt < max_retries - 1:
+                                    import time
+                                    time.sleep(retry_delay)
+                                else:
+                                    print(f"头像下载失败，已达到最大重试次数")
+                            except socket.timeout:
+                                print(f"下载头像超时 (尝试 {attempt + 1}/{max_retries})")
+                                if attempt < max_retries - 1:
+                                    import time
+                                    time.sleep(retry_delay)
+                            except Exception as e:
+                                print(f"下载头像时发生未知错误: {str(e)}")
+                                break
+                                
                 except Exception as e:
-                    print(f"下载头像失败: {str(e)}")
+                    print(f"处理头像URL时发生错误: {str(e)}")
                     # 如果下载失败，不阻止用户更新，只是不设置头像
             
             # 保存更新
