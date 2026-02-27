@@ -321,7 +321,9 @@ def updateUser(request):
             return JsonResponse({
                 'status': 'success',
                 'isGetAvatar': user.isGetAvatar,
-                'isGetNickname': user.isGetNickname
+                'isGetNickname': user.isGetNickname,
+                'nickname': user.nickname,
+                'avatar': request.build_absolute_uri(user.avatar.url) if user.avatar else ''
             })
             
         except User.DoesNotExist:
@@ -336,7 +338,6 @@ def updateUser(request):
             })
     elif request.method == 'POST':
         print(request.POST)
-        print(request.BODY)
         try:
             # 获取必要参数
             username = request.POST.get('username')
