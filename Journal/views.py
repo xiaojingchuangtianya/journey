@@ -343,7 +343,7 @@ def updateUser(request):
             # 获取必要参数
             username = request.POST.get('username')
             nickname = request.POST.get('nickname')
-            avatar = request.POST.get('avatar')
+            avatar = request.FILES.get('avatar')
 
             
             if not username:
@@ -360,38 +360,27 @@ def updateUser(request):
                 user.nickname = nickname
                 user.isGetNickname = True
             
-            # 处理BASE64格式的头像
+            # 处理上传的头像文件
             if avatar:
                 try:
-                    import base64
                     from django.core.files.base import ContentFile
                     from datetime import datetime
-                    
-                    # 检查是否包含data URI前缀
-                    if avatar.startswith('data:image'):
-                        # 提取BASE64数据部分
-                        header, encoded = avatar.split(',', 1)
-                        # 获取图片格式
-                        img_format = header.split('/')[1].split(';')[0]
-                        image_data = base64.b64decode(encoded)
-                    else:
-                        # 纯BASE64数据
-                        image_data = base64.b64decode(avatar)
-                        img_format = 'png'
                     
                     # 生成文件名
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                     safe_nickname = ''.join(c for c in (nickname or username) if c.isalnum() or c in '_-')
-                    filename = f"avatar_{safe_nickname}_{timestamp}.{img_format}"
+                    original_name = avatar.name
+                    ext = original_name.split('.')[-1] if '.' in original_name else 'png'
+                    filename = f"avatar_{safe_nickname}_{timestamp}.{ext}"
                     
                     # 保存到Django文件系统
-                    avatar_file = ContentFile(image_data, name=filename)
-                    user.avatar = avatar_file
+                    user.avatar = avatar
+                    user.avatar.name = filename
                     user.isGetAvatar = True
-                    print(f"BASE64头像保存成功: {filename}")
+                    print(f"头像保存成功: {filename}")
                     
                 except Exception as e:
-                    print(f"处理BASE64头像失败: {str(e)}")
+                    print(f"处理头像失败: {str(e)}")
                     # 如果处理失败，不阻止用户更新，只是不设置头像
             
             # 保存更新
