@@ -126,7 +126,7 @@ class Comment(models.Model):
 class Photo(models.Model):
     """照片模型，用于存储地点的多张照片"""
     # 关联到地点
-    location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='photos', verbose_name='关联地点')
+    location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='photos', verbose_name='关联地点', null=True, blank=True)
     # 照片文件
     image = models.ImageField(upload_to='location_photos/', verbose_name='照片')
     # 上传时间

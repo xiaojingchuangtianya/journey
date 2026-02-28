@@ -8,10 +8,7 @@ from Journal import models
 from django.http import HttpResponse, JsonResponse
 from django.middleware.csrf import get_token
 from django.contrib.contenttypes.models import ContentType
-from .models import Like
-from django.http import JsonResponse
-from django.contrib.contenttypes.models import ContentType
-from .models import Comment, Like, Favorite
+from .models import Like, Comment, Favorite
 import math
 from django.db.models import Q, Case, When, IntegerField
 import difflib
@@ -19,17 +16,13 @@ import json
 import os
 import random
 import urllib.request
-import json
-import base64
-from django.core.files.base import ContentFile
-import os
 from urllib.parse import urlparse
 from datetime import datetime
 from .WXBizDataCrypt import WXBizDataCrypt
-from Journey.settings import APP_ID, APP_SECRET
 # 添加PIL库导入用于图片压缩
 from PIL import Image
 from io import BytesIO
+from django.core.files.base import ContentFile
 # 导入屏蔽词过滤模块
 from .filter_words import filter_content
 
@@ -372,9 +365,6 @@ def updateUser(request):
             # 处理上传的头像文件
             if avatar:
                 try:
-                    from django.core.files.base import ContentFile
-                    from datetime import datetime
-                    
                     # 生成文件名
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                     safe_nickname = ''.join(c for c in (nickname or username) if c.isalnum() or c in '_-')
@@ -467,8 +457,70 @@ def createLocation(request):
                 region=region,  # 使用客户端传递的region参数
                 is_free=is_free  # 设置是否免费
             )
+
+            return JsonResponse({
+                'status': 'success',
+                'message': '地点创建成功！',
+                'location_id': location.id
+            })
             
-            # 图片压缩函数（优化版）
+        except User.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': '用户不存在！'
+            })
+        except ValueError as e:
+            if 'could not convert string to float' in str(e):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '经纬度格式不正确，请输入有效的数字！'
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': str(e)
+                })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'创建地点时发生错误: {str(e)}'
+            })
+    else:
+        return JsonResponse({
+            'status': 'error',
+            'message': '无效的请求方法，请使用POST请求！'
+        })
+
+
+# 修改地点
+#预留接口，但不打算进行实现
+def changeLocation(request):
+    """修改地点视图函数"""
+    pass
+
+def uploadPhoto(request):
+    """上传照片视图接口"""
+    if request.method == 'POST':
+        try:
+            # 获取用户信息
+            username = request.POST.get('username')
+            if not username:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '用户名不能为空'
+                })
+            
+            # 获取用户对象
+            user = User.objects.get(username=username)
+            
+            # 获取上传的文件
+            photo_file = request.FILES.get('file')
+            if not photo_file:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '请选择要上传的图片'
+                })
+            
             def compress_image(image_data, username, quality=70, max_width=1000, use_webp=True):
                 # 打开图片
                 img = Image.open(image_data)
@@ -514,108 +566,42 @@ def createLocation(request):
                 
                 return compressed_file, new_name
             
-            # 处理主图上传（支持Base64编码）
-            main_photo = request.POST.get('main_photo')
-            if main_photo:
-                try:
-                    # 解码Base64图片数据
-                    if main_photo.startswith('data:image'):
-                        # 移除data:image/jpeg;base64,前缀
-                        main_photo = main_photo.split(',')[1]
-                    image_data = base64.b64decode(main_photo)
-                    image_file = BytesIO(image_data)
-                    
-                    # 压缩图片，传入用户名
-                    compressed_file, new_name = compress_image(image_file, user.username)
-                    
-                    # 创建Photo对象
-                    models.Photo.objects.create(
-                        location=location,
-                        image=ContentFile(compressed_file.read(), name=new_name),
-                        is_main=True
-                    )
-                except Exception as e:
-                    return JsonResponse({
-                        'status': 'error',
-                        'message': f'主图处理失败: {str(e)}'
-                    })
+            # 压缩图片
+            compressed_file, new_name = compress_image(photo_file, user.username)
             
-            # 处理多张普通图片上传（支持Base64编码）
-            photos = request.POST.get('photos')  # 假设是JSON数组格式的Base64字符串
-            if photos:
-                try:
-                    photos_list = json.loads(photos)
-                    for idx, photo_base64 in enumerate(photos_list):
-                        try:
-                            # 解码Base64图片数据
-                            if photo_base64.startswith('data:image'):
-                                photo_base64 = photo_base64.split(',')[1]
-                            image_data = base64.b64decode(photo_base64)
-                            image_file = BytesIO(image_data)
-                            
-                            # 压缩图片，传入用户名
-                            compressed_file, new_name = compress_image(image_file, user.username)
-                            # 为多张图片添加序号后缀，确保唯一性
-                            base_name, ext = os.path.splitext(new_name)
-                            final_name = f"{base_name}-{idx+1}{ext}"
-                            
-                            # 创建Photo对象
-                            models.Photo.objects.create(
-                                location=location,
-                                image=ContentFile(compressed_file.read(), name=final_name),
-                                is_main=False
-                            )
-                        except Exception as e:
-                            return JsonResponse({
-                                'status': 'error',
-                                'message': f'第{idx+1}张图片处理失败: {str(e)}'
-                            })
-                except json.JSONDecodeError:
-                    return JsonResponse({
-                        'status': 'error',
-                        'message': '图片数据格式错误，应为JSON数组格式'
-                    })
-
+            # 创建Photo对象（location为None）
+            photo = models.Photo.objects.create(
+                location=None,
+                image=ContentFile(compressed_file.read(), name=new_name),
+                is_main=False
+            )
+            
+            # 生成图片URL
+            photo_url = request.build_absolute_uri(photo.image.url)
+            
             return JsonResponse({
                 'status': 'success',
-                'message': '地点创建成功！',
-                'location_id': location.id
+                'message': '图片上传成功',
+                'url': photo_url,
+                'photo_id': photo.id
             })
             
         except User.DoesNotExist:
             return JsonResponse({
                 'status': 'error',
-                'message': '用户不存在！'
+                'message': '用户不存在'
             })
-        except ValueError as e:
-            if 'could not convert string to float' in str(e):
-                return JsonResponse({
-                    'status': 'error',
-                    'message': '经纬度格式不正确，请输入有效的数字！'
-                })
-            else:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': str(e)
-                })
         except Exception as e:
+            print(f"上传图片失败: {str(e)}")
             return JsonResponse({
                 'status': 'error',
-                'message': f'创建地点时发生错误: {str(e)}'
+                'message': f'上传图片失败: {str(e)}'
             })
     else:
         return JsonResponse({
             'status': 'error',
-            'message': '无效的请求方法，请使用POST请求！'
+            'message': '无效的请求方法'
         })
-
-
-# 修改地点
-#预留接口，但不打算进行实现
-def changeLocation(request):
-    """修改地点视图函数"""
-    pass
-
 
 # 创建评论
 
