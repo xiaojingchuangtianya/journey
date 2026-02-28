@@ -11,6 +11,7 @@ urlpatterns = [
     path('toggle_location_like/', views.toggle_location_like, name='切换地点点赞状态'),
     path('createLocation/', views.createLocation, name='创建地点'),
     path('updateUser/', views.updateUser, name='更新用户信息'),
+    path('uploadPhoto/', views.uploadPhoto, name='上传图片'),
     path('changeLocation/', views.changeLocation, name='修改调整'),
     path('showComment/<int:location_id>/', views.showComment, name='展示评论'),
     path('likeComment/', views.likeComment, name='点赞评论'),

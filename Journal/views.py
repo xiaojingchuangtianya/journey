@@ -415,6 +415,7 @@ def createLocation(request):
             username = request.POST.get('username')
             region = request.POST.get('region')  # 直接从客户端接收region参数
             is_free = request.POST.get('is_free')  # 获取是否免费参数
+            images = request.POST.get('images')  # 获取所有上传的链接，JSON数组格式，第一张就是主图
             
             # 处理是否免费参数（转换为布尔值）
             if is_free is not None:
@@ -457,6 +458,51 @@ def createLocation(request):
                 region=region,  # 使用客户端传递的region参数
                 is_free=is_free  # 设置是否免费
             )
+
+            # 处理图片URL列表，关联到地点
+            # 规则：第一张图片为主图（is_main=True），其余为普通图片（is_main=False）
+            if images:
+                try:
+                    urls_list = json.loads(images)
+                    print(f"接收到图片URL列表: {urls_list}")
+                    
+                    if isinstance(urls_list, list) and len(urls_list) > 0:
+                        print(f"共有 {len(urls_list)} 张图片需要关联")
+                        
+                        for idx, photo_url in enumerate(urls_list):
+                            try:
+                                # 从URL中提取文件名
+                                # URL格式: https://domain.com/media/location_photos/filename.webp
+                                photo_filename = photo_url.split('/')[-1]
+                                print(f"\n--- 处理第 {idx + 1} 张图片 ---")
+                                print(f"图片URL: {photo_url}")
+                                print(f"文件名: {photo_filename}")
+                                print(f"是否主图: {'是' if idx == 0 else '否'}")
+                                
+                                # 查找已存在的Photo对象（通过uploadPhoto上传的，location为None）
+                                photo = models.Photo.objects.filter(
+                                    image__endswith=photo_filename,
+                                    location__isnull=True
+                                ).first()
+                                
+                                if photo:
+                                    print(f"找到对应的Photo对象: ID={photo.id}")
+                                    # 更新Photo对象，关联到当前地点
+                                    photo.location = location
+                                    photo.is_main = (idx == 0)  # 第一张设为主图
+                                    photo.save()
+                                    print(f"✓ 关联成功: {photo_filename} -> 地点 {location.id}, is_main={photo.is_main}")
+                                else:
+                                    print(f"✗ 未找到对应的图片: {photo_filename}")
+                            except Exception as e:
+                                print(f"✗ 关联图片失败: {photo_url}, 错误: {str(e)}")
+                    else:
+                        print("图片URL列表为空或格式不正确")
+                        
+                except json.JSONDecodeError:
+                    print("images格式错误，应为JSON数组")
+                except Exception as e:
+                    print(f"处理图片URL列表失败: {str(e)}")
 
             return JsonResponse({
                 'status': 'success',
