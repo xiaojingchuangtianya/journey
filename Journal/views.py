@@ -580,7 +580,7 @@ def createLocation(request):
                     if isinstance(urls_list, list) and len(urls_list) > 0:
                         print(f"共有 {len(urls_list)} 张图片需要关联")
                         
-                        for idx, photo_url in enumerate[str](urls_list):
+                        for idx, photo_url in enumerate(urls_list):
                             try:
                                 # 从URL中提取文件名
                                 # URL格式: https://linjingfly.top/location_photos/location_photos/oRgse5IJLk7C9z57t2EnSyiupp0g-20260302104924.webp
