@@ -472,7 +472,7 @@ def createLocation(request):
                         for idx, photo_url in enumerate(urls_list):
                             try:
                                 # 从URL中提取文件名
-                                # URL格式: https://domain.com/media/location_photos/filename.webp
+                                # URL格式: https://linjingfly.top/location_photos/location_photos/oRgse5IJLk7C9z57t2EnSyiupp0g-20260302104924.webp
                                 photo_filename = photo_url.split('/')[-1]
                                 print(f"\n--- 处理第 {idx + 1} 张图片 ---")
                                 print(f"图片URL: {photo_url}")
@@ -571,7 +571,7 @@ def uploadPhoto(request):
                     'message': '请选择要上传的图片'
                 })
             
-            def compress_image(image_data, username, quality=70, max_width=1000, use_webp=True):
+            def compress_image(image_data, username, quality=70, max_width=1000, use_webp=False):
                 # 打开图片
                 img = Image.open(image_data)
                 
@@ -591,7 +591,7 @@ def uploadPhoto(request):
                 # 保存到内存中
                 buffer = BytesIO()
                 
-                # 使用WebP格式（更小的文件大小）
+                # 使用JPEG格式作为优先格式
                 file_extension = '.jpg'
                 if use_webp:
                     try:
@@ -602,6 +602,7 @@ def uploadPhoto(request):
                         buffer.seek(0)
                         buffer.truncate()
                         img.save(buffer, format='JPEG', quality=quality, optimize=True, progressive=True)
+                        file_extension = '.jpg'
                 else:
                     img.save(buffer, format='JPEG', quality=quality, optimize=True, progressive=True)
                 
@@ -615,6 +616,7 @@ def uploadPhoto(request):
                 new_name = f"{username}-{current_time}{file_extension}"
                 
                 return compressed_file, new_name
+
             
             # 压缩图片
             compressed_file, new_name = compress_image(photo_file, user.username)
