@@ -17,7 +17,7 @@ import os
 import random
 import urllib.request
 from urllib.parse import urlparse
-from datetime import datetime
+from datetime import datetime, timedelta
 from .WXBizDataCrypt import WXBizDataCrypt
 # 添加PIL库导入用于图片压缩
 from PIL import Image
@@ -25,6 +25,41 @@ from io import BytesIO
 from django.core.files.base import ContentFile
 # 导入屏蔽词过滤模块
 from .filter_words import filter_content
+
+# 全局变量缓存access_token
+_wechat_access_token = None
+_wechat_token_expire_time = None
+
+def get_wechat_access_token():
+    """获取微信access_token，带缓存机制"""
+    global _wechat_access_token, _wechat_token_expire_time
+    
+    # 检查缓存的token是否仍然有效（提前5分钟过期，避免边界情况）
+    if _wechat_access_token and _wechat_token_expire_time:
+        if datetime.now() < _wechat_token_expire_time - timedelta(seconds=300):
+            print(f"使用缓存的access_token，过期时间: {_wechat_token_expire_time}")
+            return _wechat_access_token
+    
+    # 重新获取token
+    try:
+        token_url = f"https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={APP_ID}&secret={APP_SECRET}"
+        token_response = urllib.request.urlopen(token_url, timeout=10)
+        token_data = json.loads(token_response.read().decode('utf-8'))
+        
+        if 'access_token' in token_data:
+            _wechat_access_token = token_data['access_token']
+            # 设置过期时间（微信默认7200秒，我们提前5分钟过期）
+            expires_in = token_data.get('expires_in', 7200)
+            _wechat_token_expire_time = datetime.now() + timedelta(seconds=expires_in)
+            print(f"获取新的access_token成功，过期时间: {_wechat_token_expire_time}")
+            return _wechat_access_token
+        else:
+            print(f"获取access_token失败: {token_data}")
+            return None
+            
+    except Exception as e:
+        print(f"获取access_token异常: {str(e)}")
+        return None
 
 def determine_type(image_count):
     """根据图片数量确定type返回值"""
@@ -628,8 +663,51 @@ def uploadPhoto(request):
                 is_main=False
             )
             
-            # 生成图片URL
-            photo_url = request.build_absolute_uri(photo.image.url)
+            # 生成图片URL，这是一个list，因为可能有多个图片
+            photo_urls = [request.build_absolute_uri(photo.image.url)]
+            
+            # 调用微信内容安全检测接口
+            try:
+                # 获取access_token（使用缓存机制）
+                access_token = get_wechat_access_token()
+                
+                if access_token:
+                    
+                    # 调用微信媒体检测接口
+                    check_url = f"https://api.weixin.qq.com/wxa/media_check_async?access_token={access_token}"
+                    check_data = {
+                        "media_url": photo_url,
+                        "media_type": 2,  # 2表示图片
+                        "version": 2,     # 使用版本2
+                        "scene": 3,       # 场景3表示其他场景
+                        "openid": user.username  # 使用用户username作为openid
+                    }
+                    
+                    check_request = urllib.request.Request(
+                        check_url,
+                        data=json.dumps(check_data).encode('utf-8'),
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    check_response = urllib.request.urlopen(check_request, timeout=10)
+                    check_result = json.loads(check_response.read().decode('utf-8'))
+                    
+                    print(f"微信内容安全检测结果: {check_result}")
+                    
+                    # 如果检测不通过，删除图片并返回错误
+                    if check_result.get('errcode') != 0:
+                        print(f"微信内容安全检测失败: {check_result.get('errmsg')}")
+                        # 删除已创建的图片记录
+                        photo.delete()
+                        return JsonResponse({
+                            'status': 'error',
+                            'message': '图片内容违规，请更换图片后重试'
+                        })
+                else:
+                    print(f"获取access_token失败: {token_data}")
+                    
+            except Exception as e:
+                print(f"微信内容安全检测异常: {str(e)}")
+                # 检测异常不阻止上传，记录日志即可
             
             return JsonResponse({
                 'status': 'success',
