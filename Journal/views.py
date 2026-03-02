@@ -547,6 +547,7 @@ def changeLocation(request):
 def uploadPhoto(request):
     """上传照片视图接口"""
     if request.method == 'POST':
+        print(request.POST)
         try:
             # 获取用户信息
             username = request.POST.get('username')
