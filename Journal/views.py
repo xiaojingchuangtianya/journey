@@ -479,6 +479,65 @@ def createLocation(request):
             content = filter_content(content)
             address = filter_content(address)
             
+            # 调用微信文本内容安全检测接口
+            try:
+                # 获取access_token（使用缓存机制）
+                access_token = get_wechat_access_token()
+                
+                if access_token:
+                    # 检测标题
+                    check_url = f"https://api.weixin.qq.com/wxa/msg_sec_check?access_token={access_token}"
+                    check_data = {
+                        "content": title
+                    }
+                    
+                    check_request = urllib.request.Request(
+                        check_url,
+                        data=json.dumps(check_data).encode('utf-8'),
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    check_response = urllib.request.urlopen(check_request, timeout=10)
+                    check_result = json.loads(check_response.read().decode('utf-8'))
+                    
+                    print(f"微信标题内容安全检测结果: {check_result}")
+                    
+                    # 如果检测不通过，返回错误
+                    if check_result.get('errcode') != 0:
+                        print(f"微信标题内容安全检测失败: {check_result.get('errmsg')}")
+                        return JsonResponse({
+                            'status': 'error',
+                            'message': '标题内容违规，请修改后重试'
+                        })
+                    
+                    # 检测内容
+                    check_data = {
+                        "content": content
+                    }
+                    
+                    check_request = urllib.request.Request(
+                        check_url,
+                        data=json.dumps(check_data).encode('utf-8'),
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    check_response = urllib.request.urlopen(check_request, timeout=10)
+                    check_result = json.loads(check_response.read().decode('utf-8'))
+                    
+                    print(f"微信内容安全检测结果: {check_result}")
+                    
+                    # 如果检测不通过，返回错误
+                    if check_result.get('errcode') != 0:
+                        print(f"微信内容安全检测失败: {check_result.get('errmsg')}")
+                        return JsonResponse({
+                            'status': 'error',
+                            'message': '内容违规，请修改后重试'
+                        })
+                else:
+                    print(f"获取access_token失败: {token_data}")
+                    
+            except Exception as e:
+                print(f"微信内容安全检测异常: {str(e)}")
+                # 检测异常不阻止创建，记录日志即可
+            
             # 获取用户对象
             user = User.objects.get(username=username)
             
