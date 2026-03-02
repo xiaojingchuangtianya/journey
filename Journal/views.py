@@ -598,9 +598,9 @@ def uploadPhoto(request):
             user = User.objects.get(username=username)
             print(f"找到用户: {user.username}")
             
-            # 获取上传的文件
-            photo_file = request.FILES.get('photo')
-            if not photo_file:
+            # 获取上传的文件列表（支持多张图片）
+            photo_files = request.FILES.getlist('photo')
+            if not photo_files:
                 return JsonResponse({
                     'status': 'error',
                     'message': '请选择要上传的图片'
@@ -652,19 +652,27 @@ def uploadPhoto(request):
                 
                 return compressed_file, new_name
 
+            # 处理所有上传的图片
+            photo_urls = []
+            photo_ids = []
+            created_photos = []
             
-            # 压缩图片
-            compressed_file, new_name = compress_image(photo_file, user.username)
-            
-            # 创建Photo对象（location为None）
-            photo = models.Photo.objects.create(
-                location=None,
-                image=ContentFile(compressed_file.read(), name=new_name),
-                is_main=False
-            )
-            
-            # 生成图片URL，这是一个list，因为可能有多个图片
-            photo_urls = [request.build_absolute_uri(photo.image.url)]
+            for photo_file in photo_files:
+                # 压缩图片
+                compressed_file, new_name = compress_image(photo_file, user.username)
+                
+                # 创建Photo对象（location为None）
+                photo = models.Photo.objects.create(
+                    location=None,
+                    image=ContentFile(compressed_file.read(), name=new_name),
+                    is_main=False
+                )
+                created_photos.append(photo)
+                
+                # 生成图片URL并添加到列表
+                photo_url = request.build_absolute_uri(photo.image.url)
+                photo_urls.append(photo_url)
+                photo_ids.append(photo.id)
             
             # 调用微信内容安全检测接口
             try:
@@ -675,33 +683,35 @@ def uploadPhoto(request):
                     
                     # 调用微信媒体检测接口
                     check_url = f"https://api.weixin.qq.com/wxa/media_check_async?access_token={access_token}"
-                    check_data = {
-                        "media_url": photo_url,
-                        "media_type": 2,  # 2表示图片
-                        "version": 2,     # 使用版本2
-                        "scene": 3,       # 场景3表示其他场景
-                        "openid": user.username  # 使用用户username作为openid
-                    }
-                    
-                    check_request = urllib.request.Request(
-                        check_url,
-                        data=json.dumps(check_data).encode('utf-8'),
-                        headers={'Content-Type': 'application/json'}
-                    )
-                    check_response = urllib.request.urlopen(check_request, timeout=10)
-                    check_result = json.loads(check_response.read().decode('utf-8'))
-                    
-                    print(f"微信内容安全检测结果: {check_result}")
-                    
-                    # 如果检测不通过，删除图片并返回错误
-                    if check_result.get('errcode') != 0:
-                        print(f"微信内容安全检测失败: {check_result.get('errmsg')}")
-                        # 删除已创建的图片记录
-                        photo.delete()
-                        return JsonResponse({
-                            'status': 'error',
-                            'message': '图片内容违规，请更换图片后重试'
-                        })
+                    for i, photo_url in enumerate(photo_urls):
+                        check_data = {
+                            "media_url": photo_url,
+                            "media_type": 2,  # 2表示图片
+                            "version": 2,     # 使用版本2
+                            "scene": 3,       # 场景3表示其他场景
+                            "openid": user.username  # 使用用户username作为openid
+                        }
+                        
+                        check_request = urllib.request.Request(
+                            check_url,
+                            data=json.dumps(check_data).encode('utf-8'),
+                            headers={'Content-Type': 'application/json'}
+                        )
+                        check_response = urllib.request.urlopen(check_request, timeout=10)
+                        check_result = json.loads(check_response.read().decode('utf-8'))
+                        
+                        print(f"微信内容安全检测结果: {check_result}")
+                        
+                        # 如果检测不通过，删除所有已上传的图片并返回错误
+                        if check_result.get('errcode') != 0:
+                            print(f"微信内容安全检测失败: {check_result.get('errmsg')}")
+                            # 删除已创建的所有图片记录
+                            for photo in created_photos:
+                                photo.delete()
+                            return JsonResponse({
+                                'status': 'error',
+                                'message': '图片内容违规，请更换图片后重试'
+                            })
                 else:
                     print(f"获取access_token失败: {token_data}")
                     
@@ -712,8 +722,8 @@ def uploadPhoto(request):
             return JsonResponse({
                 'status': 'success',
                 'message': '图片上传成功',
-                'url': photo_url,
-                'photo_id': photo.id
+                'url': photo_urls,
+                'photo_id': photo_ids
             })
             
         except User.DoesNotExist:
