@@ -548,6 +548,7 @@ def uploadPhoto(request):
     """上传照片视图接口"""
     if request.method == 'POST':
         print(request.POST)
+        print(request.BODY)
         try:
             # 获取用户信息
             username = request.POST.get('username')
@@ -561,7 +562,7 @@ def uploadPhoto(request):
             user = User.objects.get(username=username)
             
             # 获取上传的文件
-            photo_file = request.FILES.get('file')
+            photo_file = request.FILES.get('photo')
             if not photo_file:
                 return JsonResponse({
                     'status': 'error',
