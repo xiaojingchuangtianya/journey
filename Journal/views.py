@@ -450,7 +450,7 @@ def createLocation(request):
             username = request.POST.get('username')
             region = request.POST.get('region')  # 直接从客户端接收region参数
             is_free = request.POST.get('is_free')  # 获取是否免费参数
-            images = request.POST.get('images')  # 获取所有上传的链接，JSON数组格式，第一张就是主图
+            images = request.POST.get('photos')  # 获取所有上传的链接，JSON数组格式，第一张就是主图
             
             # 处理是否免费参数（转换为布尔值）
             if is_free is not None:
