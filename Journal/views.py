@@ -563,10 +563,16 @@ def createLocation(request):
                         urls_list = json.loads(images)
                         print(f"解析为JSON数组: {urls_list}")
                     except json.JSONDecodeError:
-                        # 如果不是JSON格式，检查是否为单个URL字符串
+                        # 如果不是JSON格式，检查是否为逗号分隔的URL字符串
                         if isinstance(images, str) and images.strip():
-                            urls_list = [images.strip()]
-                            print(f"解析为单个URL字符串: {urls_list}")
+                            if ',' in images:
+                                # 按逗号分割URL列表
+                                urls_list = [url.strip() for url in images.split(',') if url.strip()]
+                                print(f"解析为逗号分隔的URL列表: {urls_list}")
+                            else:
+                                # 单个URL字符串
+                                urls_list = [images.strip()]
+                                print(f"解析为单个URL字符串: {urls_list}")
                         else:
                             urls_list = []
                             print("无法解析为有效的URL")
@@ -574,13 +580,8 @@ def createLocation(request):
                     if isinstance(urls_list, list) and len(urls_list) > 0:
                         print(f"共有 {len(urls_list)} 张图片需要关联")
                         
-                        for idx, photo_url in enumerate(urls_list):
+                        for idx, photo_url in enumerate[str](urls_list):
                             try:
-                                # 确保photo_url是字符串
-                                if not isinstance(photo_url, str):
-                                    print(f"✗ 跳过非字符串URL: {photo_url}")
-                                    continue
-                                
                                 # 从URL中提取文件名
                                 # URL格式: https://linjingfly.top/location_photos/location_photos/oRgse5IJLk7C9z57t2EnSyiupp0g-20260302104924.webp
                                 photo_filename = photo_url.split('/')[-1]
