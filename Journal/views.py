@@ -23,7 +23,6 @@ from .WXBizDataCrypt import WXBizDataCrypt
 from PIL import Image
 from io import BytesIO
 from django.core.files.base import ContentFile
-from django.views.decorators.csrf import csrf_exempt
 # 导入屏蔽词过滤模块
 from .filter_words import filter_content
 
@@ -545,19 +544,9 @@ def changeLocation(request):
     """修改地点视图函数"""
     pass
 
-@csrf_exempt
 def uploadPhoto(request):
     """上传照片视图接口"""
-    if request.method == 'POST':
-        print("=" * 50)
-        print("uploadPhoto接口被调用")
-        print(f"请求方法: {request.method}")
-        print(f"请求头: {dict(request.headers)}")
-        print(f"POST数据: {dict(request.POST)}")
-        print(f"FILES数据: {dict(request.FILES)}")
-        print(f"请求体: {request.body}")
-        print("=" * 50)
-        
+    if request.method == 'POST':   
         try:
             # 获取用户信息
             username = request.POST.get('username')
