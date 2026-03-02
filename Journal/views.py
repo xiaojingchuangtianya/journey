@@ -555,9 +555,10 @@ def createLocation(request):
 
             # 处理图片URL列表，关联到地点
             # 规则：第一张图片为主图（is_main=True），其余为普通图片（is_main=False）
+            print(f"原始图片URL字符串: {images}")
             if images:
                 try:
-                    urls_list = json.loads(images)
+                    urls_list = images
                     print(f"接收到图片URL列表: {urls_list}")
                     
                     if isinstance(urls_list, list) and len(urls_list) > 0:
