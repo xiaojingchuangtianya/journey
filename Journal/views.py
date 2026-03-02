@@ -23,6 +23,7 @@ from .WXBizDataCrypt import WXBizDataCrypt
 from PIL import Image
 from io import BytesIO
 from django.core.files.base import ContentFile
+from django.views.decorators.csrf import csrf_exempt
 # 导入屏蔽词过滤模块
 from .filter_words import filter_content
 
@@ -544,6 +545,7 @@ def changeLocation(request):
     """修改地点视图函数"""
     pass
 
+@csrf_exempt
 def uploadPhoto(request):
     """上传照片视图接口"""
     if request.method == 'POST':
